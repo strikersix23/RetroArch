@@ -1495,7 +1495,7 @@ static uint16_t argb32_to_rgb565(uint32_t col)
    g = rgui_quant6(g);
    b = rgui_quant5(b);
    /* Return final value */
-   return (r << 11) | (g << 6) | b;
+   return (r << 11) | (g << 5) | b;
 }
 
 /* All other platforms */
@@ -1618,7 +1618,7 @@ static uint16_t argb32_to_rgb565_dither(uint32_t col,
    r = rgui_quant5_dither(r, x, y);
    g = rgui_quant6_dither(g, x, y);
    b = rgui_quant5_dither(b, x, y);
-   return (r << 11) | (g << 6) | b;
+   return (r << 11) | (g << 5) | b;
 }
 
 /* All other platforms */

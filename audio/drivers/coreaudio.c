@@ -688,12 +688,14 @@ static void *coreaudio_init(const char *device,
 
 #if !TARGET_OS_IPHONE
    /* The HAL's IO buffer: how much the render callback is asked for at
-    * a time, and a stage of the device latency in its own right. Half
-    * the ring, so a pull always fits what the writer waits for, within
-    * what a device takes (64 to the 512 the HAL defaults to). Advisory:
-    * a device outside that range keeps its own. */
+    * a time, and a stage of the device latency in its own right - the
+    * HAL holds a whole pull before it feeds any of it on. A quarter of
+    * the ring, so the stage stays small against the setting and room
+    * comes back to the writer in small pieces, within what a device
+    * takes (64 to the 512 the HAL defaults to). Advisory: a device
+    * outside that range keeps its own. */
    {
-      UInt32 period = (UInt32)((latency * (*new_rate)) / 1000 / 2);
+      UInt32 period = (UInt32)((latency * (*new_rate)) / 1000 / 4);
       if (period < 64)
          period = 64;
       else if (period > 512)

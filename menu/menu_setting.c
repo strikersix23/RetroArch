@@ -1174,6 +1174,11 @@ static int setting_fraction_action_left_default(
          else
             *setting->value.target.fraction = min;
       }
+      /* Within half a step of the minimum is the minimum: the steps
+       * that led here were each a float subtraction, and what lands
+       * a few ulps under 0 prints as -0.000 and is stored as such. */
+      else if (*setting->value.target.fraction < min + half_step)
+         *setting->value.target.fraction = min;
    }
 
    return 0;

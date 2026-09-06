@@ -140,6 +140,10 @@ typedef struct coreaudio
    /* Lock-free ring buffer */
    float *buffer;
    size_t capacity;           /* Power of 2 for fast masking */
+   /* Samples the ring is allowed to hold: the setting, which the
+    * power-of-two capacity is only the container for. Free space,
+    * buffer_size() and the wait are counted against this. */
+   size_t usable;
    size_t write_ptr;          /* Only touched by main thread */
    size_t read_ptr;           /* Only touched by audio callback */
    retro_atomic_size_t filled; /* Samples currently in buffer */
@@ -196,7 +200,8 @@ static void coreaudio_wait_free(coreaudio_t *dev)
 
 static inline size_t rb_write_avail(coreaudio_t *dev)
 {
-   return dev->capacity - retro_atomic_load_acquire_size(&dev->filled);
+   size_t filled = retro_atomic_load_acquire_size(&dev->filled);
+   return (filled < dev->usable) ? dev->usable - filled : 0;
 }
 
 static void rb_write(coreaudio_t *dev, const float *data, size_t count)
@@ -677,21 +682,40 @@ static void *coreaudio_init(const char *device,
          kAudioUnitScope_Input, 0, &cb, sizeof(cb)) != noErr)
       goto error;
 
-   if (AudioUnitInitialize(dev->dev) != noErr)
-      goto error;
-
    /* Enforce minimum latency to prevent buffer issues */
    if (latency < 8)
       latency = 8;
+
+#if !TARGET_OS_IPHONE
+   /* The HAL's IO buffer: how much the render callback is asked for at
+    * a time, and a stage of the device latency in its own right. Half
+    * the ring, so a pull always fits what the writer waits for, within
+    * what a device takes (64 to the 512 the HAL defaults to). Advisory:
+    * a device outside that range keeps its own. */
+   {
+      UInt32 period = (UInt32)((latency * (*new_rate)) / 1000 / 2);
+      if (period < 64)
+         period = 64;
+      else if (period > 512)
+         period = 512;
+      AudioUnitSetProperty(dev->dev, kAudioDevicePropertyBufferFrameSize,
+            kAudioUnitScope_Global, 0, &period, sizeof(period));
+   }
+#endif
+
+   if (AudioUnitInitialize(dev->dev) != noErr)
+      goto error;
 
    /* Calculate buffer size in samples (stereo) */
    buffer_samples   = (latency * (*new_rate)) / 1000;
    buffer_samples  *= 2;  /* stereo */
 
-   /* Round up to next power of 2 for fast modulo via masking */
+   /* Round up to next power of 2 for fast modulo via masking; the ring
+    * holds the setting, not the container. */
    dev->capacity = 1;
    while (dev->capacity < buffer_samples)
       dev->capacity <<= 1;
+   dev->usable = buffer_samples;
 
    dev->buffer = (float *)calloc(dev->capacity, sizeof(float));
    if (!dev->buffer)
@@ -703,9 +727,9 @@ static void *coreaudio_init(const char *device,
    dev->read_ptr  = 0;
 
    RARCH_LOG("[CoreAudio] Buffer: %u samples (%u bytes, %.1f ms).\n",
-         (unsigned)dev->capacity,
-         (unsigned)(dev->capacity * sizeof(float)),
-         (float)dev->capacity * 1000.0f / (*new_rate) / 2.0f);
+         (unsigned)dev->usable,
+         (unsigned)(dev->usable * sizeof(float)),
+         (float)dev->usable * 1000.0f / (*new_rate) / 2.0f);
 
 #if !TARGET_OS_IPHONE
    /* The device's own stage behind the ring, for the statistics
@@ -1004,7 +1028,7 @@ static size_t coreaudio_write_avail(void *data)
 static size_t coreaudio_buffer_size(void *data)
 {
    coreaudio_t *dev = (coreaudio_t*)data;
-   return dev->capacity * sizeof(float);
+   return dev->usable * sizeof(float);
 }
 
 /* Wait on what the render callback signals after every pull
@@ -1016,7 +1040,7 @@ static size_t coreaudio_wait_writable(void *data, size_t len)
 {
    coreaudio_t *dev = (coreaudio_t*)data;
    size_t want      = len / sizeof(float);
-   size_t half      = dev->capacity / 2;
+   size_t half      = dev->usable / 2;
    int    laps      = 8;
 
    if (want > half)

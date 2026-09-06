@@ -32,7 +32,7 @@
 #import "cocoa/RetroArchPlaylistManager.h"
 #endif
 
-#if defined(HAVE_COCOA_METAL)
+#ifdef HAVE_METAL
 #include "../../gfx/drivers/metal.h"
 #endif
 
@@ -99,12 +99,7 @@
 #include "SDL.h"
 #endif
 
-#if defined(HAVE_COCOA_METAL) || defined(HAVE_COCOATOUCH)
 #import "JITSupport.h"
-id<ApplePlatform> apple_platform;
-#else
-static id apple_platform;
-#endif
 
 static void ui_companion_cocoatouch_event_command(
       void *data, enum event_command cmd) { }
@@ -532,7 +527,7 @@ enum
 
 @end
 
-#ifdef HAVE_COCOA_METAL
+#ifdef HAVE_VULKAN
 @implementation MetalLayerView
 
 + (Class)layerClass {
@@ -614,7 +609,7 @@ enum
 
    switch (vt)
    {
-#ifdef HAVE_COCOA_METAL
+#ifdef HAVE_VULKAN
        case APPLE_VIEW_TYPE_VULKAN:
          /* +new returns a +1 object; that retain transfers into
           * _renderView and satisfies the ivar's ownership invariant
@@ -624,6 +619,8 @@ enum
          _renderView.multipleTouchEnabled = YES;
 #endif
          break;
+#endif
+#ifdef HAVE_METAL
        case APPLE_VIEW_TYPE_METAL:
          {
             MetalView *v = [MetalView new];
@@ -650,7 +647,6 @@ enum
          return;
    }
 
-   _renderView.translatesAutoresizingMaskIntoConstraints = NO;
    UIView *rootView = [CocoaView get].view;
    [rootView addSubview:_renderView];
 #if TARGET_OS_IOS
@@ -669,10 +665,23 @@ enum
       _renderView.userInteractionEnabled = YES;
    }
 #endif
-   [[_renderView.topAnchor constraintEqualToAnchor:rootView.topAnchor] setActive:YES];
-   [[_renderView.bottomAnchor constraintEqualToAnchor:rootView.bottomAnchor] setActive:YES];
-   [[_renderView.leadingAnchor constraintEqualToAnchor:rootView.leadingAnchor] setActive:YES];
-   [[_renderView.trailingAnchor constraintEqualToAnchor:rootView.trailingAnchor] setActive:YES];
+   /* Layout anchors are iOS 9; the view is asked whether it has them
+    * and pinned to the container's edges either way. */
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 90000 || __TV_OS_VERSION_MAX_ALLOWED >= 90000
+   if ([_renderView respondsToSelector:@selector(topAnchor)])
+   {
+      _renderView.translatesAutoresizingMaskIntoConstraints = NO;
+      [[_renderView.topAnchor constraintEqualToAnchor:rootView.topAnchor] setActive:YES];
+      [[_renderView.bottomAnchor constraintEqualToAnchor:rootView.bottomAnchor] setActive:YES];
+      [[_renderView.leadingAnchor constraintEqualToAnchor:rootView.leadingAnchor] setActive:YES];
+      [[_renderView.trailingAnchor constraintEqualToAnchor:rootView.trailingAnchor] setActive:YES];
+   }
+   else
+#endif
+   {
+      _renderView.frame            = rootView.bounds;
+      _renderView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+   }
    [_renderView layoutIfNeeded];
 }
 
@@ -680,13 +689,18 @@ enum
 
 - (void)setVideoMode:(gfx_ctx_mode_t)mode
 {
-#ifdef HAVE_COCOA_METAL
-   MetalView *metalView = (MetalView*) _renderView;
-   CGFloat scale        = [[UIScreen mainScreen] scale];
-   [metalView setDrawableSize:CGSizeMake(
-         _renderView.bounds.size.width * scale,
-         _renderView.bounds.size.height * scale
-         )];
+#ifdef HAVE_METAL
+   /* Only the MTKView has a drawable size to set; the GLKView and
+    * the CAMetalLayer-backed Vulkan view size themselves. */
+   if (_vt == APPLE_VIEW_TYPE_METAL)
+   {
+      MetalView *metalView = (MetalView*) _renderView;
+      CGFloat scale        = [[UIScreen mainScreen] scale];
+      [metalView setDrawableSize:CGSizeMake(
+            _renderView.bounds.size.width * scale,
+            _renderView.bounds.size.height * scale
+            )];
+   }
 #endif
 }
 

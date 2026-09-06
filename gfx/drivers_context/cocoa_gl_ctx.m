@@ -437,12 +437,10 @@ static bool cocoa_gl_gfx_ctx_bind_api(void *data, enum gfx_ctx_api api,
 }
 
 #if TARGET_OS_OSX
-#if defined(HAVE_COCOA_METAL)
 static void cocoa_gl_gfx_ctx_init_mainthread(void *userdata)
 {
    [apple_platform setViewType:APPLE_VIEW_TYPE_OPENGL];
 }
-#endif
 
 typedef struct
 {
@@ -466,17 +464,9 @@ static void cocoa_gl_gfx_ctx_set_video_mode_mainthread(void *userdata)
    unsigned width              = args->width;
    unsigned height             = args->height;
    bool fullscreen             = args->fullscreen;
-#if defined(HAVE_COCOA_METAL)
    gfx_ctx_mode_t mode;
-   NSView *g_view              = apple_platform.renderView;
-#elif defined(HAVE_COCOA)
-   CocoaView *g_view           = (CocoaView*)nsview_get_ptr();
-#endif
+   NSView *g_view              = [apple_platform renderView];
    cocoa_ctx_data_t *cocoa_ctx = (cocoa_ctx_data_t*)data;
-#ifndef HAVE_COCOA_METAL
-   static bool
-      has_went_fullscreen      = false;
-#endif
    cocoa_ctx->width            = width;
    cocoa_ctx->height           = height;
 
@@ -546,11 +536,9 @@ static void cocoa_gl_gfx_ctx_set_video_mode_mainthread(void *userdata)
 
       /* A context must never be released while still attached to the
        * view (or current on the render thread).  -destroy guarantees
-       * that on the normal reinit path, but on non-Metal macOS
-       * gl2_init() calls -set_video_mode twice back-to-back (see the
-       * "very annoying issue" comment in gl2.c), so g_ctx/g_hw_ctx can
-       * still be live here from the first call.  Detach them before
-       * RELEASE, exactly as -destroy_mainthread does; the caller has
+       * that on the normal reinit path; should -set_video_mode ever be
+       * reached with g_ctx/g_hw_ctx still live, detach them before
+       * RELEASE, exactly as -destroy_mainthread does.  The caller has
        * already cleared the render thread's current context.  Under
        * ARC RELEASE() is an assignment of nil to a strong static, which
        * still releases, so this applies to both memory models. */
@@ -584,134 +572,14 @@ static void cocoa_gl_gfx_ctx_set_video_mode_mainthread(void *userdata)
          [win setColorSpace:[NSColorSpace sRGBColorSpace]];
    }
 
-#ifdef HAVE_COCOA_METAL
+   /* Window and full-screen surgery lives with the application
+    * delegate, which knows whether the system has native full-screen
+    * or needs the borderless-window mode. */
    mode.width           = width;
    mode.height          = height;
    mode.fullscreen      = fullscreen;
    [apple_platform setVideoMode:mode];
    cocoa_show_mouse(data, !fullscreen);
-#else
-   /* Hand-rolled fullscreen for the non-Metal path.
-    *
-    * The previous implementation called -[NSView enterFullScreenMode:
-    * withOptions:], which internally captures all displays and moves
-    * the view into an AppKit-manufactured NSWindow.  That replacement
-    * window is a plain NSWindow, not RAWindow, so -[RAWindow sendEvent:]
-    * (the event-pump override that feeds cocoa_input, added in commit
-    * 23a945639) stops firing while fullscreen, and keystrokes / mouse
-    * clicks get dropped.
-    *
-    * Instead, create our own borderless RAWindow covering the chosen
-    * screen, move the CocoaView into it, and show it above the menu
-    * bar.  Because the fullscreen window is itself an RAWindow, our
-    * sendEvent: override keeps firing.  SDL, GLFW, and similar
-    * libraries use this same pattern for pre-Lion fullscreen on macOS.
-    *
-    * Extra constraint: on 10.5 Leopard, -[NSWindow setStyleMask:]
-    * doesn't exist, so we can't toggle the existing window's style
-    * between titled and borderless - the new-window approach is the
-    * only option that works on every macOS version we target.
-    *
-    * HAVE_COCOA_METAL is unaffected: that path goes through
-    * -[apple_platform setVideoMode:] above, which drives the native
-    * -[NSWindow toggleFullScreen:] API on 10.7+. */
-   static NSWindow *saved_windowed_window = NULL;
-   static NSWindow *fullscreen_window     = NULL;
-   static NSRect    saved_view_frame;
-
-   if (fullscreen)
-   {
-      if (!has_went_fullscreen)
-      {
-         NSScreen *screen        = (BRIDGE NSScreen *)cocoa_screen_get_chosen();
-         NSRect    screen_frame  = [screen frame];
-         /* Look up RAWindow at runtime rather than pulling its
-          * @interface out of ui_cocoa.m into a shared header. */
-         Class     ra_window_cls = NSClassFromString(@"RAWindow");
-
-         /* Remember where the view lived so we can put it back on exit. */
-         saved_windowed_window   = [[g_view window] retain];
-         saved_view_frame        = [g_view frame];
-
-         /* Build the fullscreen host window.  NSBorderlessWindowMask is
-          * 0 on every macOS version, identical 10.5 through modern.
-          * Raising above NSMainMenuWindowLevel is belt-and-braces once
-          * the menu bar is hidden below. */
-         fullscreen_window = [[ra_window_cls alloc]
-               initWithContentRect:screen_frame
-                         styleMask:NSBorderlessWindowMask
-                           backing:NSBackingStoreBuffered
-                             defer:NO];
-         [fullscreen_window setLevel:NSMainMenuWindowLevel + 1];
-         [fullscreen_window setOpaque:YES];
-         [fullscreen_window setHidesOnDeactivate:YES];
-
-         /* Hide menu bar + Dock.  Only valid when fullscreening onto
-          * screen 0 (the screen that owns the menu bar); on a
-          * secondary screen the menu bar stays put and hiding it would
-          * mangle the primary screen. */
-         if ([[NSScreen screens] count] > 0
-               && [screen isEqual:[[NSScreen screens] objectAtIndex:0]])
-            [NSMenu setMenuBarVisible:NO];
-
-         /* Move the CocoaView from the windowed window into the
-          * fullscreen window.  Retain across the move so the view
-          * isn't released by removeFromSuperview... if it happened
-          * to hold the last reference. */
-         [g_view retain];
-         [g_view removeFromSuperviewWithoutNeedingDisplay];
-         [[fullscreen_window contentView] addSubview:g_view];
-         /* -[NSWindow contentView] returns id on the 10.5-10.9 SDKs,
-          * which means GCC can resolve -bounds either to -[NSView
-          * bounds] (NSRect) or -[CALayer bounds] (CGRect).  On 32-bit
-          * Darwin those are distinct incompatible structs, so the
-          * implicit CGRect -> NSRect (setFrame:'s parameter) coercion
-          * fails to compile.  Cast the receiver to NSView* so the
-          * right -bounds wins.  Same fix class as 8e428f4e67. */
-         [g_view setFrame:[(NSView*)[fullscreen_window contentView] bounds]];
-         [g_view release];
-
-         /* Order the windowed window out, bring the fullscreen window
-          * up, and route keystrokes to the view. */
-         [saved_windowed_window orderOut:nil];
-         [fullscreen_window makeKeyAndOrderFront:nil];
-         [fullscreen_window makeFirstResponder:g_view];
-
-         cocoa_show_mouse(data, false);
-      }
-   }
-   else
-   {
-      if (has_went_fullscreen && fullscreen_window)
-      {
-         /* Put the view back in the windowed window. */
-         [g_view retain];
-         [g_view removeFromSuperviewWithoutNeedingDisplay];
-         [[saved_windowed_window contentView] addSubview:g_view];
-         [g_view setFrame:saved_view_frame];
-         [g_view release];
-
-         /* Restore the menu bar, tear down the fullscreen window,
-          * bring the windowed window back. */
-         [NSMenu setMenuBarVisible:YES];
-
-         [fullscreen_window orderOut:nil];
-         [fullscreen_window release];
-         fullscreen_window = NULL;
-
-         [saved_windowed_window makeKeyAndOrderFront:nil];
-         [saved_windowed_window makeFirstResponder:g_view];
-         [saved_windowed_window release];
-         saved_windowed_window = NULL;
-
-         cocoa_show_mouse(data, true);
-      }
-
-      [[g_view window] setContentSize:NSMakeSize(width, height)];
-   }
-
-   has_went_fullscreen = fullscreen;
-#endif
 
    /* Seed/refresh the published backing size while still on the main
     * thread, so a threaded-video worker never observes the initial 0x0
@@ -732,9 +600,9 @@ static bool cocoa_gl_gfx_ctx_set_video_mode(void *data,
    /* Current-context state is per-thread, so this has to happen here
     * on the render thread and not inside the main-thread body: with
     * threaded video, +currentContext on the main thread would never
-    * report g_ctx, and the previous context (still live when gl2_init
-    * calls -set_video_mode twice) would be released while current.
-    * Harmless when nothing is current; g_ctx is re-bound below. */
+    * report g_ctx, and a previous context still live here would be
+    * released while current.  Harmless when nothing is current; g_ctx
+    * is re-bound below. */
    [GLContextClass clearCurrentContext];
 
    cocoa_main_thread_sync(cocoa_gl_gfx_ctx_set_video_mode_mainthread, &args);
@@ -758,22 +626,18 @@ static void *cocoa_gl_gfx_ctx_init(void *video_driver)
    cocoa_ctx->flags |= COCOA_CTX_FLAG_IS_SYNCING;
 #endif
 
-#if defined(HAVE_COCOA_METAL)
    /* setViewType creates/attaches the render view (AppKit); marshal to
     * the main thread when the underlying driver init runs on the video
     * worker thread. */
    cocoa_main_thread_sync(cocoa_gl_gfx_ctx_init_mainthread, NULL);
-#endif
 
    return cocoa_ctx;
 }
 #else
-#if defined(HAVE_COCOA_METAL)
 static void cocoa_gl_gfx_ctx_init_es_mainthread(void *userdata)
 {
    [apple_platform setViewType:APPLE_VIEW_TYPE_OPENGL_ES];
 }
-#endif
 
 /* EAGLContext creation and the GLKView association are UIKit-adjacent
  * and are kept on the main thread; binding the context current happens
@@ -844,13 +708,10 @@ static void *cocoa_gl_gfx_ctx_init(void *video_driver)
    switch (cocoagl_api)
    {
       case GFX_CTX_OPENGL_ES_API:
-#if defined(HAVE_COCOA_METAL)
-         /* The Metal build supports both the OpenGL
-          * and Metal video drivers.  setViewType creates/attaches the
-          * render view (UIKit); marshal to the main thread when the
-          * underlying driver init runs on the video worker thread. */
+         /* setViewType creates/attaches the render view (UIKit);
+          * marshal to the main thread when the underlying driver init
+          * runs on the video worker thread. */
          cocoa_main_thread_sync(cocoa_gl_gfx_ctx_init_es_mainthread, NULL);
-#endif
          break;
       case GFX_CTX_NONE:
       default:
@@ -861,12 +722,10 @@ static void *cocoa_gl_gfx_ctx_init(void *video_driver)
 }
 #endif
 
-#ifdef HAVE_COCOA_METAL
 static bool cocoa_gl_gfx_ctx_set_resize(void *data, unsigned width, unsigned height)
 {
    return true;
 }
-#endif
 
 static void cocoa_gl_gfx_ctx_get_video_output_size(void *data,
       unsigned *width, unsigned *height, char *desc, size_t desc_len)
@@ -920,11 +779,7 @@ const gfx_ctx_driver_t gfx_ctx_cocoagl = {
    NULL, /* update_title */
 #endif
    cocoa_gl_gfx_ctx_check_window,
-#if defined(HAVE_COCOA_METAL)
    cocoa_gl_gfx_ctx_set_resize,
-#else
-   NULL, /* set_resize */
-#endif
    cocoa_has_focus,
    cocoa_gl_gfx_ctx_suppress_screensaver,
 #if defined(HAVE_COCOATOUCH)

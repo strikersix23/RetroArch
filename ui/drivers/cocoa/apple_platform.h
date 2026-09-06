@@ -35,9 +35,14 @@ extern void osx_show_file_sheet(void);
 #ifdef __OBJC__
 
 #import <Foundation/Foundation.h>
+#include <defines/cocoa_defines.h>
 
-#ifdef HAVE_METAL
+/* The Vulkan render view is a CAMetalLayer-backed view and needs the
+ * Metal device API even in a build without the Metal video driver. */
+#if defined(HAVE_METAL) || defined(HAVE_VULKAN)
 #import <Metal/Metal.h>
+#endif
+#ifdef HAVE_METAL
 #import <MetalKit/MetalKit.h>
 #endif
 
@@ -50,14 +55,11 @@ typedef enum apple_view_type
    APPLE_VIEW_TYPE_METAL
 } apple_view_type_t;
 
-#if defined(HAVE_COCOA_METAL) && !defined(HAVE_COCOATOUCH)
-@interface WindowListener : NSResponder<NSWindowDelegate>
-/* assign (not retain) - WindowListener is a delegate; the window owns it, not vice versa */
-@property (nonatomic, assign) NSWindow *window;
-@end
-#endif
-
-#if defined(HAVE_COCOA_METAL) || defined(HAVE_COCOATOUCH)
+/* ApplePlatform is the one interface the video context and video
+ * drivers use to reach the host application on every Apple target:
+ * it owns the render view, swaps it for the kind the current video
+ * driver needs, and performs the window and full-screen surgery, all
+ * of it on the main thread. */
 @protocol ApplePlatform
 
 /*! @brief renderView returns the current render view based on the viewType */
@@ -79,19 +81,13 @@ typedef enum apple_view_type
 #endif
 @end
 
-#endif
-
-#if defined(HAVE_COCOA_METAL) || defined(HAVE_COCOATOUCH)
 extern id<ApplePlatform> apple_platform;
-#else
-extern id apple_platform;
-#endif
 
 void rarch_start_draw_observer(void);
 void rarch_stop_draw_observer(void);
 
 #if TARGET_OS_IPHONE && defined(HAVE_COCOATOUCH)
-#if defined(HAVE_COCOA_METAL)
+#ifdef HAVE_VULKAN
 @interface MetalLayerView : UIView
 @property (nonatomic, readonly) CAMetalLayer *metalLayer;
 @end
@@ -129,23 +125,36 @@ UINavigationControllerDelegate> {
 
 #import <AppKit/AppKit.h>
 
-#if defined(HAVE_COCOA_METAL)
-@interface RetroArch_OSX : NSObject<ApplePlatform, NSApplicationDelegate> {
-#elif (defined(__MACH__)  && defined(MAC_OS_X_VERSION_MAX_ALLOWED) && (MAC_OS_X_VERSION_MAX_ALLOWED < 101200))
-@interface RetroArch_OSX : NSObject {
-#else
-@interface RetroArch_OSX : NSObject<NSApplicationDelegate> {
-#endif
+/* The main window's delegate and the responder behind the render view:
+ * swallows key events so AppKit does not beep, and records the window
+ * geometry for the remember-position setting. */
+@interface WindowListener : NSResponder RARCH_PROTO_NSWINDOWDELEGATE
+{
+	/* Declared, not synthesized: the fragile 32-bit runtime GCC 4.0
+	 * targets cannot add ivars for a property on its own. */
 	NSWindow *_window;
-	apple_view_type_t _vt;
+}
+/* assign (not retain) - WindowListener is a delegate; the window owns it, not vice versa */
+@property (nonatomic, assign) NSWindow *window;
+@end
+
+@interface RetroArch_OSX : NSObject<ApplePlatform RARCH_PROTO_NSAPPLICATIONDELEGATE> {
+	NSWindow *_window;
+	/* Host of the render view while in the pre-10.7 borderless
+	 * full-screen mode; nil otherwise.  See -setVideoMode:. */
+	NSWindow *_fullscreenWindow;
+	WindowListener *_listener;
 	NSView *_renderView;
 	id _sleepActivity;
-#if defined(HAVE_COCOA_METAL)
-	WindowListener *_listener;
-#endif
+	apple_view_type_t _vt;
 }
 
 @property(nonatomic, retain) NSWindow IBOutlet *window;
+
+/* The window currently hosting the render view: the borderless
+ * full-screen window while that mode is active, the main window
+ * otherwise. */
+- (NSWindow *)hostWindow;
 
 @end
 #endif

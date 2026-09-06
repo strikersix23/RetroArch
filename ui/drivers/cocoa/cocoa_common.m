@@ -112,11 +112,7 @@ extern bool RAIsVoiceOverRunning(void)
 #endif
 #endif /* OSX */
 
-#if defined(HAVE_COCOA_METAL) || defined(HAVE_COCOATOUCH)
 id<ApplePlatform> apple_platform;
-#else
-id apple_platform;
-#endif
 
 static CocoaView* g_instance;
 
@@ -191,9 +187,10 @@ void rarch_stop_draw_observer(void)
 @implementation CocoaView
 
 #if TARGET_OS_OSX
-#ifdef HAVE_COCOA_METAL
+/* CALayerDelegate, asked from 10.7 on when the view hosts a layer (the
+ * Vulkan CAMetalLayer); a plain method that older releases never
+ * call. */
 - (BOOL)layer:(CALayer *)layer shouldInheritContentsScale:(CGFloat)newScale fromWindow:(NSWindow *)window { return YES; }
-#endif
 - (void)scrollWheel:(NSEvent *)theEvent { }
 #endif
 
@@ -777,11 +774,9 @@ void rarch_stop_draw_observer(void)
 #pragma mark - UIViewController Lifecycle
 
 -(void)loadView {
-#if defined(HAVE_COCOA_METAL)
+   /* A plain container; -[RetroArch_iOS setViewType:] installs the
+    * render view the current video driver needs beneath it. */
    self.view       = [UIView new];
-#else
-   self.view       = (BRIDGE GLKView*)glkitview_init();
-#endif
 }
 
 -(void)viewDidLoad {
@@ -1356,14 +1351,7 @@ void nsview_set_ptr(CocoaView *p)
 
 CocoaView *cocoaview_get(void)
 {
-#if defined(HAVE_COCOA_METAL)
-    return (CocoaView*)apple_platform.renderView;
-#elif defined(HAVE_COCOA)
-    return g_instance;
-#else
-    /* TODO/FIXME - implement */
-    return NULL;
-#endif
+    return (CocoaView*)[apple_platform renderView];
 }
 
 #if TARGET_OS_OSX

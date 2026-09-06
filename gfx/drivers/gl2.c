@@ -5065,15 +5065,6 @@ static void *gl2_init(const video_info_t *video,
          || !gl->ctx_driver->set_video_mode(gl->ctx_data,
             win_width, win_height, (video->fullscreen || force_fullscreen)))
       goto error;
-#if defined(__APPLE__) && !TARGET_OS_IPHONE && !defined(HAVE_COCOA_METAL)
-   /* This is a hack for now to work around a very annoying
-    * issue that currently eludes us. */
-   if (     !gl->ctx_driver->set_video_mode
-         || !gl->ctx_driver->set_video_mode(gl->ctx_data,
-            win_width, win_height, (video->fullscreen || force_fullscreen)))
-      goto error;
-#endif
-
 #if !defined(RARCH_CONSOLE) || defined(HAVE_LIBNX)
    rglgen_resolve_symbols(ctx_driver->get_proc_address);
 #endif

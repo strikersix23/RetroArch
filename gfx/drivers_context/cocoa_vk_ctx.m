@@ -317,11 +317,7 @@ static void cocoa_vk_gfx_ctx_set_video_mode_mainthread(void *userdata)
 {
    cocoa_vk_set_video_mode_args_t *args = (cocoa_vk_set_video_mode_args_t*)userdata;
    gfx_ctx_mode_t mode;
-#if defined(HAVE_COCOA_METAL)
    NSView *g_view                 = apple_platform.renderView;
-#elif defined(HAVE_COCOA)
-   CocoaView *g_view              = (CocoaView*)nsview_get_ptr();
-#endif
    cocoa_vk_ctx_data_t *cocoa_ctx = (cocoa_vk_ctx_data_t*)args->data;
    cocoa_ctx->width               = args->width;
    cocoa_ctx->height              = args->height;
@@ -504,7 +500,6 @@ static void *cocoa_vk_gfx_ctx_init(void *video_driver)
 }
 #endif
 
-#ifdef HAVE_COCOA_METAL
 typedef struct
 {
    cocoa_vk_ctx_data_t *ctx;
@@ -556,7 +551,6 @@ static bool cocoa_vk_gfx_ctx_set_resize(void *data, unsigned width, unsigned hei
 
    return args.ok;
 }
-#endif
 
 static void cocoa_vk_gfx_ctx_get_video_output_size(void *data,
       unsigned *width, unsigned *height, char *desc, size_t desc_len)
@@ -588,11 +582,7 @@ const gfx_ctx_driver_t gfx_ctx_cocoavk = {
    NULL, /* update_title */
 #endif
    cocoa_vk_gfx_ctx_check_window,
-#if defined(HAVE_COCOA_METAL)
    cocoa_vk_gfx_ctx_set_resize,
-#else
-   NULL, /* set_resize */
-#endif
    cocoa_has_focus,
    cocoa_vk_gfx_ctx_suppress_screensaver,
 #if defined(HAVE_COCOATOUCH)

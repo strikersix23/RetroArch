@@ -5761,7 +5761,7 @@ void video_driver_frame(const void *data, unsigned width,
                         stage, buffer_ms / 2.0);
                else
                   __len += snprintf(video_info.stat_text + __len, sizeof(video_info.stat_text) - __len,
-                        " Buffer:  %s ms (DRC off)\n",
+                        " Buffer:  %s ms\n",
                         stage);
             }
             {

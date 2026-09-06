@@ -1822,7 +1822,7 @@ bool vulkan_surface_create(gfx_ctx_vulkan_data_t *vk,
          break;
       case VULKAN_WSI_MVK_MACOS:
       case VULKAN_WSI_MVK_IOS:
-#if defined(HAVE_COCOA) || defined(HAVE_COCOA_METAL) || defined(HAVE_COCOATOUCH)
+#if defined(HAVE_COCOA) || defined(HAVE_COCOATOUCH)
          {
             VkMetalSurfaceCreateInfoEXT surf_info;
             PFN_vkCreateMetalSurfaceEXT create;

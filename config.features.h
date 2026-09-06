@@ -364,7 +364,7 @@
 #define SUPPORTS_SSL false
 #endif
 
-#if defined(HAVE_COCOA) || defined(HAVE_COCOATOUCH) || defined(HAVE_COCOA_METAL)
+#if defined(HAVE_COCOA) || defined(HAVE_COCOATOUCH)
 #define SUPPORTS_COCOA true
 #else
 #define SUPPORTS_COCOA false

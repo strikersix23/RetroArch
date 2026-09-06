@@ -688,7 +688,7 @@ static const enum input_driver_enum INPUT_DEFAULT_DRIVER = INPUT_UDEV;
 static const enum input_driver_enum INPUT_DEFAULT_DRIVER = INPUT_LINUXRAW;
 #elif defined(HAVE_WAYLAND)
 static const enum input_driver_enum INPUT_DEFAULT_DRIVER = INPUT_WAYLAND;
-#elif defined(HAVE_COCOA) || defined(HAVE_COCOATOUCH) || defined(HAVE_COCOA_METAL)
+#elif defined(HAVE_COCOA) || defined(HAVE_COCOATOUCH)
 static const enum input_driver_enum INPUT_DEFAULT_DRIVER = INPUT_COCOA;
 #elif defined(__QNX__)
 static const enum input_driver_enum INPUT_DEFAULT_DRIVER = INPUT_QNX;

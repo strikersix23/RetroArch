@@ -217,7 +217,7 @@ static const gfx_ctx_driver_t *gfx_ctx_gl_drivers[] = {
 #if defined(__QNX__)
    &gfx_ctx_qnx,
 #endif
-#if defined(HAVE_COCOA) || defined(HAVE_COCOATOUCH) || defined(HAVE_COCOA_METAL)
+#if defined(HAVE_COCOA) || defined(HAVE_COCOATOUCH)
 #if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
    &gfx_ctx_cocoagl,
 #endif
@@ -514,10 +514,10 @@ const video_driver_t *video_drivers[] = {
 #if defined(HAVE_SDL) && !defined(HAVE_SDL_DINGUX)
    &video_sdl,
 #endif
-#if defined(HAVE_SDL2) && !(defined(HAVE_COCOA) || defined(HAVE_COCOA_METAL))
+#if defined(HAVE_SDL2) && !defined(HAVE_COCOA)
    &video_sdl2,
 #endif
-#if defined(HAVE_SDL3) && !(defined(HAVE_COCOA) || defined(HAVE_COCOA_METAL))
+#if defined(HAVE_SDL3) && !defined(HAVE_COCOA)
    &video_sdl3,
 #endif
 #ifdef HAVE_SDL_DINGUX
@@ -4615,7 +4615,7 @@ bool video_driver_init_internal(bool *video_is_threaded, bool verbosity_enabled)
 #endif
       {
 #if (defined(_WIN32) && !defined(_XBOX) && !defined(__WINRT__)) ||  \
-    (defined(HAVE_COCOA_METAL) && !defined(HAVE_COCOATOUCH)) ||     \
+    (defined(HAVE_COCOA) && !defined(HAVE_COCOATOUCH)) ||     \
     defined(HAVE_SDL3)
          bool window_custom_size_enable = settings->bools.video_window_save_positions;
 #else

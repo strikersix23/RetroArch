@@ -1475,34 +1475,37 @@ static void *wasapi_init(const char *dev_id, unsigned rate, unsigned latency,
              * is a 44 ms fifo and reads as 64; under IAudioClient3 the
              * engine is a few ms and the fifo is nearly the setting. */
             {
-               /* The floor: one frame of core audio at 50 fps plus one
-                * engine period, and never under the engine buffer.
+               /* The floor: what the writer's burst needs. The writer
+                * hands the fifo a whole frame of core audio at a time
+                * and the pump only frees room once per period.
                 *
-                * The writer hands the fifo a whole frame at a time,
-                * and the pump only frees room once per period. A fifo
-                * of exactly one frame cannot take the next one until
-                * the pump has run - fifo_new() keeps a byte, and rate
-                * control resamples the chunk a little long when the
-                * device runs ahead - so with a blocking writer every
-                * write waited a period, inside retro_run(). At 48 kHz
-                * that was 960 frames offered to 959 of room: PAL
-                * stuttered at the minimum setting and 60 fps did not.
-                * The period of headroom is what the pump frees while
-                * the frame is being written. Periods, not engine
-                * buffers: the engine buffer is itself two periods on
-                * the legacy path, and a floor of two of those swallowed
-                * every setting below 44 ms. */
+                * A writer that blocks inside retro_run() - audio sync
+                * on, the frame-synchronous pipeline - gets a frame at
+                * 50 fps plus a period, the room the pump frees while
+                * the frame is written, and never under the engine
+                * buffer: fifo_new() keeps a byte and rate control
+                * stretches the chunk, so a fifo of exactly one frame
+                * would make it wait a period on every frame.
+                *
+                * A writer that cannot stall a frame - the threaded
+                * pipeline's audio thread, or any writer with audio sync
+                * off - needs only the frame to fit: one at 50 fps, plus
+                * the 2% rate control can stretch it, plus a frame of
+                * slack, never under two periods.
+                *
+                * Periods, not engine buffers: the engine buffer is two
+                * periods on the legacy path, and a floor of two of
+                * those would swallow every setting below 44 ms. */
                unsigned period_frames = 0;
                unsigned floor_frames;
+               bool writer_blocks_frame = audio_sync
+                     && !settings->bools.audio_threaded_pipeline;
                /* The period the engine actually runs at - the one its
                 * events follow - is what the pump counts consumed by.
                 * Under IAudioClient3 that may be below the default, and
                 * it is recorded in wasapi_sh_engine_period when that
                 * path opened the stream; GetDevicePeriod() only knows
-                * the default. The comment said this and the code did
-                * not do it, so an IAudioClient3 stream at 3 ms got a
-                * floor sized for 10 - 30 ms of fifo where 23 was the
-                * point of asking for the small period. */
+                * the default. */
                if (wasapi_sh_engine_period)
                   period_frames = wasapi_sh_engine_period;
                else
@@ -1511,11 +1514,16 @@ static void *wasapi_init(const char *dev_id, unsigned rate, unsigned latency,
                   if (SUCCEEDED(hr) && dev_period > 0)
                      period_frames = (unsigned)(dev_period * rate / 10000000);
                }
-               floor_frames = rate / 50 + period_frames;
+               if (writer_blocks_frame)
+               {
+                  floor_frames = rate / 50 + period_frames;
+                  if (floor_frames < frame_count)
+                     floor_frames = frame_count;
+               }
+               else
+                  floor_frames = rate / 50 + rate / 2000 + 1;
                if (floor_frames < period_frames * 2)
                   floor_frames = period_frames * 2;
-               if (floor_frames < frame_count)
-                  floor_frames = frame_count;
                sh_buffer_length = (unsigned)(((uint64_t)latency * rate) / 1000);
                if (sh_buffer_length > frame_count + floor_frames)
                   sh_buffer_length -= frame_count;

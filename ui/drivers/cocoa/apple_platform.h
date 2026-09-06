@@ -131,8 +131,9 @@ UINavigationControllerDelegate> {
 @interface WindowListener : NSResponder RARCH_PROTO_NSWINDOWDELEGATE
 {
 	/* Declared, not synthesized: the fragile 32-bit runtime GCC 4.0
-	 * targets cannot add ivars for a property on its own. */
-	NSWindow *_window;
+	 * targets cannot add ivars for a property on its own.  Unretained,
+	 * as the assign property it backs requires under ARC. */
+	RARCH_UNSAFE_UNRETAINED NSWindow *_window;
 }
 /* assign (not retain) - WindowListener is a delegate; the window owns it, not vice versa */
 @property (nonatomic, assign) NSWindow *window;

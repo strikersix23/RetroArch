@@ -173,6 +173,10 @@
 #endif
 
 #if __has_feature(objc_arc)
+/* Ownership qualifier for an ivar that backs an 'assign' object
+ * property: ARC requires the ivar to say it does not retain, and no
+ * other compiler knows the word. */
+#define RARCH_UNSAFE_UNRETAINED __unsafe_unretained
 #define RARCH_RETAIN(x)         (x)
 #define RARCH_RELEASE(x)        ((void)0)
 #define RARCH_AUTORELEASE(x)    ((void)0)
@@ -185,6 +189,7 @@
 #define RARCH_AUTORELEASEPOOL_BEGIN @autoreleasepool {
 #define RARCH_AUTORELEASEPOOL_END   }
 #else
+#define RARCH_UNSAFE_UNRETAINED
 #define RARCH_RETAIN(x)         [(x) retain]
 #define RARCH_RELEASE(x)        [(x) release]
 #define RARCH_AUTORELEASE(x)    [(x) autorelease]

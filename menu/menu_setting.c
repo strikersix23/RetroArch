@@ -1190,8 +1190,9 @@ static int setting_fraction_action_right_default(
 
    if (setting->flags & SD_FLAG_ENFORCE_MAXRANGE)
    {
-      float max = setting->max;
-      if (*setting->value.target.fraction > max)
+      float max       = setting->max;
+      float half_step = setting->step * 0.5f;
+      if (*setting->value.target.fraction > max + half_step)
       {
          settings_t *settings = config_get_ptr();
          float          min   = setting->min;
@@ -1201,6 +1202,10 @@ static int setting_fraction_action_right_default(
          else
             *setting->value.target.fraction = max;
       }
+      /* The mirror of the left action: within half a step of the
+       * maximum is the maximum. */
+      else if (*setting->value.target.fraction > max - half_step)
+         *setting->value.target.fraction = max;
    }
 
    return 0;

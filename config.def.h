@@ -1326,8 +1326,13 @@
 #endif
 
 /* Ask the OS to schedule the audio thread ahead of the rest of the
- * frontend. Best effort. Off by default. */
+ * frontend. Best effort: a system that refuses keeps the default
+ * priority. On wherever there is an audio thread to raise. */
+#if defined(HAVE_THREADS)
+#define DEFAULT_AUDIO_THREAD_PRIORITY true
+#else
 #define DEFAULT_AUDIO_THREAD_PRIORITY false
+#endif
 
 /* Audio rate control. */
 #if !defined(RARCH_CONSOLE)

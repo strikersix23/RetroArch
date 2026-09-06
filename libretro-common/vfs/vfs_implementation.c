@@ -2001,10 +2001,11 @@ int retro_vfs_file_rename_impl(const char *old_path, const char *new_path)
       free(aside);
       return ret;
    }
-#elif defined(_3DS) || defined(PS2) || defined(WIIU) || (defined(SWITCH) && defined(HAVE_LIBNX))
+#elif defined(_3DS) || defined(PS2) || defined(WIIU) || defined(GEKKO) || (defined(SWITCH) && defined(HAVE_LIBNX))
    /* The filesystems here refuse to rename onto an existing entry -
-    * FS on 3DS and Switch, FatFs behind bdmfs_fatfs on PS2 - and
-    * libnx and ps2sdk pass that refusal through, while libctru
+    * FS on 3DS and Switch, FatFs behind bdmfs_fatfs on PS2, libfat
+    * on Wii and GameCube - and libnx, ps2sdk and libfat pass that
+    * refusal through, while libctru
     * clears the way by deleting the destination first, leaving
     * nothing on disk until the rename lands.  Wii U's FSRename()
     * is taken to behave the same way.  So when a destination is in

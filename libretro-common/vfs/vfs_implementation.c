@@ -2000,12 +2000,14 @@ int retro_vfs_file_rename_impl(const char *old_path, const char *new_path)
       free(aside);
       return ret;
    }
-#elif defined(SWITCH) && defined(HAVE_LIBNX)
-   /* libnx's rename() is a single fsFsRenameFile() call, and FS
-    * refuses a destination that already exists, so the
-    * write-to-temporary-then-rename pattern needs the destination
-    * moved aside here.  It is removed only once its replacement is
-    * in place, and put back if the replacement cannot be. */
+#elif defined(_3DS) || (defined(SWITCH) && defined(HAVE_LIBNX))
+   /* FS on both consoles refuses to rename onto an existing entry.
+    * libnx's rename() passes that refusal through; libctru's clears
+    * the way by deleting the destination first, leaving nothing on
+    * disk until the rename lands.  So when a destination is in the
+    * way, move it aside before calling rename() at all: it is
+    * removed only once its replacement is in place, and put back
+    * if the replacement cannot be. */
    {
       struct stat st;
       size_t _len;
@@ -2015,12 +2017,8 @@ int retro_vfs_file_rename_impl(const char *old_path, const char *new_path)
       if (!old_path || !*old_path || !new_path || !*new_path)
          return -1;
 
-      if (rename(old_path, new_path) == 0)
-         return 0;
-
-      /* Only worth trying when there is a destination to move aside. */
       if (stat(new_path, &st) != 0)
-         return -1;
+         return rename(old_path, new_path) == 0 ? 0 : -1;
 
       _len  = strlen(new_path);
       if (!(aside = (char*)malloc(_len + sizeof(".old"))))

@@ -3112,8 +3112,11 @@ static bool slang_pass_init_pipeline(struct slang_pass *pass)
    input_assembly.sType                         = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
    input_assembly.pNext                         = NULL;
    input_assembly.flags                         = 0;
+   /* Restart on: it only acts on indexed draws, of which the shader
+    * chain makes none, and Metal cannot turn it off for strips, so
+    * MoltenVK would otherwise warn once per pass on every load. */
    input_assembly.topology                      = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
-   input_assembly.primitiveRestartEnable        = VK_FALSE;
+   input_assembly.primitiveRestartEnable        = VK_TRUE;
 
    /* VAO state */
    attributes[0].location                       = 0;

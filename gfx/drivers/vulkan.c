@@ -3866,7 +3866,14 @@ static void vulkan_init_pipelines(vk_t *vk)
    vulkan_init_pipeline_layout(vk);
 
    /* Input assembly */
-   input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+   /* Strip pipelines below are created with primitive restart on.
+    * Restart only acts on indexed draws that contain the 0xFFFF index,
+    * which the shared quad IBO never holds (vulkan_init_quad_ibo caps
+    * it), so it changes nothing about what is drawn; and Metal has no
+    * way to turn restart off for strips, so MoltenVK warns on every
+    * pipeline that asks - once per pass, on every shader load. */
+   input_assembly.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+   input_assembly.primitiveRestartEnable = VK_FALSE;
 
    /* VAO state */
    attributes[0].location  = 0;
@@ -4013,7 +4020,8 @@ static void vulkan_init_pipelines(vk_t *vk)
 
    /* Build display pipelines (STRIP topology only).
     *   [0]: blend off, [1]: blend on. */
-   input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+   input_assembly.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+   input_assembly.primitiveRestartEnable = VK_TRUE;
    for (i = 0; i < 2; i++)
    {
       blend_attachment.blendEnable = i;
@@ -4089,7 +4097,8 @@ static void vulkan_init_pipelines(vk_t *vk)
    /* Other menu pipelines.  Six STRIP-only variants populate
     * slots [2..7]: ribbon, ribbon_simple, snow_simple, snow,
     * bokeh, snowflake.  See display.pipelines for layout. */
-   input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+   input_assembly.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+   input_assembly.primitiveRestartEnable = VK_TRUE;
    for (i = 0; i < 6; i++)
    {
       switch (i)
@@ -4190,7 +4199,8 @@ static void vulkan_init_pipelines(vk_t *vk)
       /* Reset topology to TRIANGLE_LIST for the font and
        * alpha_blend pipelines.  The preceding menu shader loop
        * leaves it at TRIANGLE_STRIP. */
-      input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+      input_assembly.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+      input_assembly.primitiveRestartEnable = VK_FALSE;
 
       /* SDR font pipeline */
       module_info.codeSize   = sizeof(alpha_blend_vert);
@@ -4231,7 +4241,8 @@ static void vulkan_init_pipelines(vk_t *vk)
        * Reuse the alpha_blend vertex shader (stages[0]) and
        * alpha_blend fragment shader (stages[1]) still alive
        * from just above. */
-      input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+      input_assembly.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+      input_assembly.primitiveRestartEnable = VK_TRUE;
       for (i = 0; i < 2; i++)
       {
          blend_attachment.blendEnable = i;
@@ -4245,7 +4256,8 @@ static void vulkan_init_pipelines(vk_t *vk)
 
       /* SDR menu shader pipelines, slots [2..7].  STRIP-only;
        * mirror of the main display.pipelines build. */
-      input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+      input_assembly.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+      input_assembly.primitiveRestartEnable = VK_TRUE;
       for (i = 0; i < 6; i++)
       {
          switch (i)
@@ -4976,10 +4988,17 @@ static void vulkan_init_quad_ibo(vk_t *vk, unsigned max_quads)
    VkResult res;
    void *mapped                            = NULL;
    VkDevice device                         = vk->context->device;
-   VkDeviceSize ibo_size                   = max_quads * 6 * sizeof(uint16_t);
+   VkDeviceSize ibo_size;
    VkBufferCreateInfo buffer_info;
    VkMemoryRequirements mem_reqs;
    VkMemoryAllocateInfo alloc;
+
+   /* 16-bit indices, and 0xFFFF is the primitive-restart index the
+    * strip pipelines are created with: the largest index written is
+    * max_quads * 4 - 1, which must stay below it. */
+   if (max_quads > 0xFFFF / 4)
+      max_quads = 0xFFFF / 4;
+   ibo_size                                = max_quads * 6 * sizeof(uint16_t);
 
    buffer_info.sType                       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
    buffer_info.pNext                       = NULL;

@@ -6585,7 +6585,7 @@ XMB_NOINLINE static int xmb_draw_item(
                video_height,
                node->alpha,
                (entry.flags & MENU_ENTRY_FLAG_CHECKED) ? 0 : M_PI,
-               0.333f,
+               0.5f,
                &color[0],
                xmb->shadow_offset / 2,
                ctx->mymat);

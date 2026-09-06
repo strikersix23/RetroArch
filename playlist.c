@@ -1946,7 +1946,6 @@ error:
    return false;
 }
 
-static bool playlist_replace_file(const char *from, const char *to);
 
 void playlist_write_runtime_file(playlist_t *playlist)
 {
@@ -2103,7 +2102,7 @@ end:
    /* Only now does the new content replace the old one.  If anything
     * above failed, the temporary is discarded and what is on disk is
     * exactly what it was. */
-   if (wrote_ok && playlist_replace_file(write_path, playlist->config.path))
+   if (wrote_ok && filestream_rename(write_path, playlist->config.path) == 0)
       RARCH_DBG("[Playlist] Runtime written to file: \"%s\".\n",
             playlist->config.path);
    else
@@ -2148,45 +2147,6 @@ static void playlist_cached_after_write(playlist_t *written)
        * where nothing is holding the old pointer. */
       playlist_cached_stale = true;
    }
-}
-
-/* Move @from onto @to, replacing whatever is there.
- *
- * POSIX rename() replaces atomically and that is the whole point of
- * this, so try it first and take the single-syscall path where it
- * works.  Windows' rename() refuses when the destination exists, so
- * there the original is moved aside first: at every instant either the
- * destination or the saved copy is a complete file, and if the second
- * move fails the original is put back.  A failure anywhere leaves the
- * existing playlist untouched, which is the outcome that matters. */
-static bool playlist_replace_file(const char *from, const char *to)
-{
-   char saved[PATH_MAX_LENGTH];
-   size_t _len;
-
-   if (filestream_rename(from, to) == 0)
-      return true;
-
-   /* Either the destination exists and this platform will not replace
-    * it, or the move itself failed.  Try moving the original aside. */
-   _len = strlcpy(saved, to, sizeof(saved));
-   if (_len + STRLEN_CONST(".old") >= sizeof(saved))
-      return false;
-   strlcpy_lit(saved + _len, ".old", sizeof(saved) - _len);
-
-   filestream_delete(saved);          /* a leftover from a previous run */
-   if (filestream_rename(to, saved) != 0)
-      return false;                   /* original untouched; give up   */
-
-   if (filestream_rename(from, to) == 0)
-   {
-      filestream_delete(saved);
-      return true;
-   }
-
-   /* Put the original back rather than leave nothing behind. */
-   filestream_rename(saved, to);
-   return false;
 }
 
 void playlist_write_file(playlist_t *playlist)
@@ -2610,7 +2570,7 @@ end:
    /* Only now does the new content replace the old one.  If anything
     * above failed, the temporary is discarded and the playlist on disk
     * is exactly what it was. */
-   if (wrote_ok && playlist_replace_file(write_path, playlist->config.path))
+   if (wrote_ok && filestream_rename(write_path, playlist->config.path) == 0)
    {
       RARCH_LOG("[Playlist] Written to file: \"%s\".\n",
             playlist->config.path);

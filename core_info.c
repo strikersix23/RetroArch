@@ -925,42 +925,6 @@ end:
 }
 #endif
 
-/* Move a completed temporary over its destination.
- *
- * POSIX rename() replaces atomically, which is the whole point;
- * Windows' rename() refuses when the destination exists, so fall back
- * to moving the original aside first and putting it back if the second
- * move fails - never leaving nothing behind.
- *
- * (playlist.c carries the same helper for the same reason.  A third
- * caller would justify hoisting one copy into libretro-common.) */
-static bool core_info_replace_file(const char *from, const char *to)
-{
-   char saved[PATH_MAX_LENGTH];
-   size_t _len;
-
-   if (filestream_rename(from, to) == 0)
-      return true;
-
-   _len = strlcpy(saved, to, sizeof(saved));
-   if (_len + STRLEN_CONST(".old") >= sizeof(saved))
-      return false;
-   strlcpy_lit(saved + _len, ".old", sizeof(saved) - _len);
-
-   filestream_delete(saved);          /* a leftover from a previous run */
-   if (filestream_rename(to, saved) != 0)
-      return false;                   /* original untouched; give up   */
-
-   if (filestream_rename(from, to) == 0)
-   {
-      filestream_delete(saved);
-      return true;
-   }
-
-   filestream_rename(saved, to);      /* put the original back */
-   return false;
-}
-
 static bool core_info_cache_write(core_info_cache_list_t *list, const char *info_dir)
 {
    intfstream_t *file    = NULL;
@@ -1296,7 +1260,7 @@ static bool core_info_cache_write(core_info_cache_list_t *list, const char *info
    free(file);
    file    = NULL;
 
-   if (!core_info_replace_file(write_path, file_path))
+   if (filestream_rename(write_path, file_path) != 0)
    {
       filestream_delete(write_path);
       RARCH_ERR("[Core info] Failed to write core info cache file: \"%s\".\n",

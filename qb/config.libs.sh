@@ -298,15 +298,11 @@ if [ "$OS" = 'Darwin' ]; then
    #   * HAVE_METAL defaults to 'no' in config.params.sh so check_platform
    #     early-outs. Force it on here so the Metal video driver is built,
    #     unless the user explicitly passed --disable-metal.
-   #   * HAVE_VULKAN must be set to 'yes' before the COCOA_METAL check
-   #     below, which decides which AppKit glue to compile based on
-   #     whether Metal/Vulkan is in play. Link-time libvulkan is not
-   #     required on Darwin; MoltenVK is loaded dynamically at runtime
-   #     by gfx/common/vulkan_common.c.
+   #   * HAVE_VULKAN is forced on alongside it. Link-time libvulkan is
+   #     not required on Darwin; MoltenVK is loaded dynamically at
+   #     runtime by gfx/common/vulkan_common.c.
    # Skip the force-on on pre-10.7 targets — Metal is 10.11+ and
    # MoltenVK is 10.11+, so neither is buildable on Tiger/Leopard.
-   # That also keeps HAVE_COCOA_METAL off, which in turn avoids code
-   # paths that use the 10.6+ NSWindowDelegate protocol.
    if [ "$macos_target_pre_10_7" = 'no' ]; then
       [ "${USER_METAL:-}"  != 'no' ] && HAVE_METAL=yes
       [ "${USER_VULKAN:-}" != 'no' ] && HAVE_VULKAN=yes
@@ -374,11 +370,7 @@ if [ "$OS" = 'Darwin' ]; then
 
    unset macos_target_ver macos_target_pre_10_7 macos_target_pre_10_11
 
-   if [ "$HAVE_METAL" = yes ] || [ "$HAVE_VULKAN" = yes ]; then
-      check_lib '' COCOA_METAL "-framework AppKit" NSApplicationMain
-   else
-      check_lib '' COCOA "-framework AppKit" NSApplicationMain
-   fi
+   check_lib '' COCOA "-framework AppKit" NSApplicationMain
 
    check_lib '' CORELOCATION "-framework CoreLocation"
    check_lib '' IOHIDMANAGER "-framework IOKit" IOHIDManagerCreate

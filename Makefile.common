@@ -1755,9 +1755,12 @@ ifeq ($(HAVE_VULKAN), 1)
    # into Contents/Frameworks) produces a self-contained bundle with no
    # external MoltenVK dependency. Matches what Xcode's
    # LD_RUNPATH_SEARCH_PATHS does for the .xcodeproj build.
+   # The Vulkan render view is a CAMetalLayer on a Metal device, so the
+   # Metal frameworks are linked whether or not the Metal driver is.
    ifneq ($(findstring Darwin,$(OS)),)
       LDFLAGS += -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
                  -Xlinker -rpath -Xlinker @executable_path/../Frameworks/MoltenVK.framework
+      LIBS    += -framework Metal -framework QuartzCore
    endif
 endif
 
@@ -2729,14 +2732,6 @@ ifeq ($(HAVE_COMPRESSION), 1)
 endif
 
 ifeq ($(HAVE_COCOA), 1)
-   HAVE_COCOA_COMMON = 1
-endif
-ifeq ($(HAVE_COCOA_METAL), 1)
-   HAVE_COCOA_COMMON = 1
-   DEFINES += -DHAVE_COCOA_METAL
-endif
-
-ifeq ($(HAVE_COCOA_COMMON),1)
    DEFINES += -DHAVE_MAIN -DTARGET_OS_OSX=1 -DHAVE_COCOA
    OBJ += input/drivers/cocoa_input.o \
           ui/drivers/ui_cocoa.o \

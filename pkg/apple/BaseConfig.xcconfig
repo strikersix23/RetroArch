@@ -24,7 +24,6 @@ OTHER_CFLAGS = $(inherited) -DHAVE_CHEATS
 OTHER_CFLAGS = $(inherited) -DHAVE_CHEEVOS
 OTHER_CFLAGS = $(inherited) -DHAVE_CHEEVOS_RVZ
 OTHER_CFLAGS = $(inherited) -DHAVE_CLOUDSYNC
-OTHER_CFLAGS = $(inherited) -DHAVE_COCOA_METAL
 OTHER_CFLAGS = $(inherited) -DHAVE_COMMAND
 OTHER_CFLAGS = $(inherited) -DHAVE_CONFIGFILE
 OTHER_CFLAGS = $(inherited) -DHAVE_COREAUDIO
@@ -109,6 +108,7 @@ OTHER_CFLAGS[sdk=macosx*] = $(inherited) -DHAVE_AVF
 OTHER_CFLAGS[sdk=macosx*] = $(inherited) -DHAVE_COREMIDI
 OTHER_CFLAGS[sdk=macosx*] = $(inherited) -DHAVE_DISCORD
 OTHER_CFLAGS[sdk=macosx*] = $(inherited) -DHAVE_DYLIB
+OTHER_CFLAGS[sdk=macosx*] = $(inherited) -DHAVE_COCOA
 OTHER_CFLAGS[sdk=macosx*] = $(inherited) -DHAVE_GETOPT_LONG
 OTHER_CFLAGS[sdk=macosx*] = $(inherited) -DHAVE_HID
 OTHER_CFLAGS[sdk=macosx*] = $(inherited) -DHAVE_IOHIDMANAGER

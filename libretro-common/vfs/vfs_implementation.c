@@ -1946,13 +1946,14 @@ int retro_vfs_file_rename_impl(const char *old_path, const char *new_path)
 #endif
    return ret;
 
-#elif defined(VITA)
+#elif defined(VITA) || defined(PSP)
    /* rename() here means "replace": the Win32 branch above says so
     * with MOVEFILE_REPLACE_EXISTING and POSIX says so by definition,
     * and the write-to-temporary-then-rename pattern - playlists, the
     * config file, core info - is built on it.  The kernel's own
-    * sceIoRename() refuses an existing destination, and newlib's
-    * rename() bridges that gap by sceIoRemove()ing the destination
+    * sceIoRename() refuses an existing destination on both PSP and
+    * Vita.  pspsdk's rename() passes that refusal through; Vita's
+    * newlib bridges the gap by sceIoRemove()ing the destination
     * first and renaming after.  Between those two calls nothing is
     * on disk, and if the rename then fails the caller's temporary
     * is discarded on top: the file that was being replaced is

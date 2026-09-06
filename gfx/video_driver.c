@@ -5731,14 +5731,9 @@ void video_driver_frame(const void *data, unsigned width,
             /* The driver's name, not the wrapper's under the threaded
              * pipeline. */
             const char *audio_ident   = audio_driver_get_ident();
-            /* The buffer the driver opened with against what was asked:
-             * the setting is a hint, and this is what came of it. Half
-             * is where rate control holds the fill. */
+            /* The buffer the driver opened with. Half is where rate
+             * control holds the fill. */
             double      buffer_ms     = audio_driver_get_buffer_latency_ms();
-            unsigned    setting_ms    = settings->uints.audio_latency;
-            unsigned    runloop_ms    = runloop_st->audio_latency;
-            if (runloop_ms > setting_ms)
-               setting_ms             = runloop_ms;
             __len += snprintf(video_info.stat_text + __len, sizeof(video_info.stat_text) - __len,
                   "AUDIO: %s %s\n"
                   " SampleRate: %u %s\n"
@@ -5762,12 +5757,12 @@ void video_driver_frame(const void *data, unsigned width,
                   strlcpy(stage, "n/a", sizeof(stage));
                if (buffer_ms > 0.0 && (AUDIO_FLAGS_GET(audio_st) & AUDIO_FLAG_CONTROL))
                   __len += snprintf(video_info.stat_text + __len, sizeof(video_info.stat_text) - __len,
-                        " Buffer:  %s ms (asked %u, held ~%.0f)\n",
-                        stage, setting_ms, buffer_ms / 2.0);
+                        " Buffer:  %s ms (held ~%.0f)\n",
+                        stage, buffer_ms / 2.0);
                else
                   __len += snprintf(video_info.stat_text + __len, sizeof(video_info.stat_text) - __len,
-                        " Buffer:  %s ms (asked %u, DRC off)\n",
-                        stage, setting_ms);
+                        " Buffer:  %s ms (DRC off)\n",
+                        stage);
             }
             {
                /* The device's and the core's real rates against the

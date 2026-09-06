@@ -227,6 +227,9 @@ static INLINE void CondVar_Broadcast(CondVar* cv)
 #endif
 
 /* sthread_setname */
+#if defined(__APPLE__)
+#include <dlfcn.h>
+#endif
 #if defined(__linux__) && !defined(USE_WIN32_THREADS)
 #include <sys/prctl.h>
 #endif
@@ -1375,9 +1378,20 @@ void sthread_setname(const char *name)
    buf[i] = '\0';
    prctl(PR_SET_NAME, buf, 0, 0, 0);
 #elif defined(__APPLE__)
+   /* pthread_setname_np is 10.6; it is looked up at run time so one
+    * binary builds against, and runs on, 10.5 as well.  The pointer is
+    * kept once found: it cannot come and go while the process runs. */
+   static int (*setname)(const char*) = NULL;
+   static int looked_up               = 0;
    if (!name)
       return;
-   pthread_setname_np(name);
+   if (!looked_up)
+   {
+      *(void**)&setname = dlsym(RTLD_DEFAULT, "pthread_setname_np");
+      looked_up         = 1;
+   }
+   if (setname)
+      setname(name);
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
    if (!name)
       return;

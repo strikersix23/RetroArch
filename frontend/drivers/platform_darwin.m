@@ -716,9 +716,24 @@ static const char* frontend_darwin_get_cpu_model_name(void)
 static enum retro_language frontend_darwin_get_user_language(void)
 {
    char s[128];
-   CFArrayRef langs = CFLocaleCopyPreferredLanguages();
-   CFStringRef langCode = CFArrayGetValueAtIndex(langs, 0);
+   CFArrayRef langs;
+   CFStringRef langCode;
+   /* CFLocaleCopyPreferredLanguages is 10.5; looked up at run time so
+    * one binary builds against, and runs on, 10.4 as well. */
+   CFArrayRef (*copy_langs)(void) = (CFArrayRef (*)(void))
+      dlsym(RTLD_DEFAULT, "CFLocaleCopyPreferredLanguages");
+   if (!copy_langs)
+      return RETRO_LANGUAGE_ENGLISH;
+   langs = copy_langs();
+   if (!langs || CFArrayGetCount(langs) < 1)
+   {
+      if (langs)
+         CFRelease(langs);
+      return RETRO_LANGUAGE_ENGLISH;
+   }
+   langCode = CFArrayGetValueAtIndex(langs, 0);
    CFStringGetCString(langCode, s, sizeof(s), kCFStringEncodingUTF8);
+   CFRelease(langs);
    /* iOS and OS X only support the language ID syntax consisting
     * of a language designator and optional region or script designator. */
    string_replace_all_chars(s, '-', '_');

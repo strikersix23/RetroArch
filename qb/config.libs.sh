@@ -271,6 +271,7 @@ if [ "$OS" = 'Darwin' ]; then
    # MACOSX_DEPLOYMENT_TARGET (set by the invoker or the toolchain)
    # takes priority over sw_vers, because on a cross-build the host
    # OS version may be newer than the target.
+   macos_target_pre_10_5=no
    macos_target_pre_10_7=no
    macos_target_pre_10_11=no
    macos_target_ver="${MACOSX_DEPLOYMENT_TARGET:-}"
@@ -282,6 +283,10 @@ if [ "$OS" = 'Darwin' ]; then
       mt_minor=$(printf %s "$macos_target_ver" | cut -d. -f2)
       [ -z "$mt_major" ] && mt_major=0
       [ -z "$mt_minor" ] && mt_minor=0
+      if [ "$mt_major" -lt 10 ] || \
+         { [ "$mt_major" -eq 10 ] && [ "$mt_minor" -lt 5 ]; }; then
+         macos_target_pre_10_5=yes
+      fi
       if [ "$mt_major" -lt 10 ] || \
          { [ "$mt_major" -eq 10 ] && [ "$mt_minor" -lt 7 ]; }; then
          macos_target_pre_10_7=yes
@@ -379,7 +384,17 @@ if [ "$OS" = 'Darwin' ]; then
       die : "Notice: macOS target $macos_target_ver is pre-10.7; disabling CoreLocation (requires ARC and blocks).  Override with --enable-corelocation."
    fi
 
-   unset macos_target_ver macos_target_pre_10_7 macos_target_pre_10_11
+   # IOHIDManager (the joypad HID driver) is 10.5.  A 10.4 target
+   # leaves it out unless asked; the binary then launches on Tiger
+   # with keyboard and mouse input.
+   if [ "$macos_target_pre_10_5" = 'yes' ] && \
+      [ "${USER_IOHIDMANAGER:-}" != 'yes' ] && \
+      [ "$HAVE_IOHIDMANAGER" != 'no' ]; then
+      HAVE_IOHIDMANAGER=no
+      die : "Notice: macOS target $macos_target_ver is pre-10.5; disabling IOHIDManager joypad support (10.5 API).  Override with --enable-iohidmanager."
+   fi
+
+   unset macos_target_ver macos_target_pre_10_5 macos_target_pre_10_7 macos_target_pre_10_11
 
    check_lib '' COCOA "-framework AppKit" NSApplicationMain
 

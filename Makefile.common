@@ -161,7 +161,8 @@ ifneq ($(findstring Darwin,$(OS)),)
       MINVERFLAGS     = -mmacosx-version-min=10.6
       ARCHFLAGS       = -arch x86
    else ifeq ($(ARCH),ppc)
-      MINVERFLAGS     = -mmacosx-version-min=10.5
+      # 10.5 unless the invoker targets older (10.4 is the floor).
+      MINVERFLAGS     = -mmacosx-version-min=$(or $(MACOSX_DEPLOYMENT_TARGET),10.5)
       ARCHFLAGS       = -arch ppc
    endif
    ifeq ($(BUILDBOT),1)

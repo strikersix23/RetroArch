@@ -694,7 +694,20 @@ static ui_application_t ui_application_cocoa = {
 
 @implementation RetroArch_OSX
 
-@synthesize window = _window;
+/* Written out rather than synthesized: a synthesized retain property
+ * calls objc_setProperty / objc_getProperty, which the 10.4 runtime
+ * does not have, and this is what keeps a 10.4-target binary from
+ * launching on Tiger. */
+- (NSWindow *)window { return _window; }
+
+- (void)setWindow:(NSWindow *)window
+{
+   if (window == _window)
+      return;
+   (void)RARCH_RETAIN(window);
+   RARCH_RELEASE(_window);
+   _window = window;
+}
 
 #if !__has_feature(objc_arc)
 /* ARC auto-generates -dealloc from strong ivars and forbids explicit

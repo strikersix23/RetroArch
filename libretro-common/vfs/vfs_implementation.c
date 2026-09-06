@@ -1825,6 +1825,46 @@ int retro_vfs_file_remove_impl(const char *path)
    return -1;
 }
 
+#if defined(_WIN32) && !defined(_XBOX) && (defined(LEGACY_WIN32_RUNTIME) || defined(LEGACY_WIN32))
+/* Replace @new_local with @old_local where MoveFileEx() is not
+ * available (Windows 9x): a destination in the way is moved aside,
+ * the source renamed into place, and the moved-aside copy removed
+ * only then - or put back if the second rename fails.  Both paths
+ * are in the local code page. */
+static int win32_rename_replace_local(const char *old_local,
+      const char *new_local)
+{
+   size_t _len;
+   char *aside;
+   int ret;
+
+   if (rename(old_local, new_local) == 0)
+      return 0;
+
+   _len  = strlen(new_local);
+   if (!(aside = (char*)malloc(_len + sizeof(".old"))))
+      return -1;
+   memcpy(aside, new_local, _len);
+   memcpy(aside + _len, ".old", sizeof(".old"));
+
+   ret = -1;
+   remove(aside);                      /* a leftover from an earlier run */
+   if (rename(new_local, aside) == 0)
+   {
+      if (rename(old_local, new_local) == 0)
+      {
+         remove(aside);
+         ret = 0;
+      }
+      else
+         rename(aside, new_local);
+   }
+
+   free(aside);
+   return ret;
+}
+#endif
+
 int retro_vfs_file_rename_impl(const char *old_path, const char *new_path)
 {
 #if defined(ANDROID) && defined(HAVE_SAF)
@@ -1860,8 +1900,8 @@ int retro_vfs_file_rename_impl(const char *old_path, const char *new_path)
     * destination on Windows, which breaks writing to a temporary and
     * renaming it over the original.  MoveFileExW with
     * MOVEFILE_REPLACE_EXISTING gives the POSIX overwrite behaviour.
-    * It is unsupported on 9x, so the local-encoding path replaces by
-    * removing the destination, and only after a plain rename fails. */
+    * It is unsupported on 9x, so the local-encoding path moves the
+    * destination aside and renames into its place. */
 #if defined(LEGACY_WIN32_RUNTIME)
    if (win32_needs_local_encoding())
    {
@@ -1873,11 +1913,7 @@ int retro_vfs_file_rename_impl(const char *old_path, const char *new_path)
 
          if (new_path_local)
          {
-            if (rename(old_path_local, new_path_local) == 0)
-               ret = 0;
-            else if (remove(new_path_local) == 0 &&
-                  rename(old_path_local, new_path_local) == 0)
-               ret = 0;
+            ret = win32_rename_replace_local(old_path_local, new_path_local);
             free(new_path_local);
          }
 
@@ -1913,11 +1949,7 @@ int retro_vfs_file_rename_impl(const char *old_path, const char *new_path)
 
          if (new_path_local)
          {
-            if (rename(old_path_local, new_path_local) == 0)
-               ret = 0;
-            else if (remove(new_path_local) == 0 &&
-                  rename(old_path_local, new_path_local) == 0)
-               ret = 0;
+            ret = win32_rename_replace_local(old_path_local, new_path_local);
             free(new_path_local);
          }
 

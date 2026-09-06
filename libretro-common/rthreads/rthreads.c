@@ -278,6 +278,8 @@ extern long syscall(long number, ...);
 #if defined(__MACH__) && defined(__APPLE__)
 #include <mach/clock.h>
 #include <mach/mach.h>
+#include <mach/mach_time.h>
+#include <mach/thread_policy.h>
 #include <TargetConditionals.h>
 #include <AvailabilityMacros.h> /* MAC_OS_X_VERSION_MIN_REQUIRED (since 10.2) */
 /* The pthread QoS override API (pthread_override_qos_class_start_np, used by
@@ -1342,6 +1344,28 @@ bool sthread_raise_current_priority(void)
    /* Bionic lets an app move its own threads into the audio band
     * without privilege; -16 is ANDROID_PRIORITY_AUDIO. */
    return setpriority(PRIO_PROCESS, gettid(), -16) == 0;
+#elif defined(__MACH__) && defined(__APPLE__)
+   /* The time-constraint policy is what makes a thread real-time on
+    * Darwin: pthread_setschedparam() only moves it within the
+    * time-shared band. A period close to a small audio IO cycle with
+    * a fraction of it as the budget is what the HAL's own IO thread
+    * runs under; a thread that overruns its budget is demoted by the
+    * kernel, not killed. Needs no privilege. */
+   {
+      struct thread_time_constraint_policy policy;
+      mach_timebase_info_data_t tb;
+      double ns_per_tick;
+      if (mach_timebase_info(&tb) != KERN_SUCCESS || !tb.denom)
+         return false;
+      ns_per_tick         = (double)tb.numer / (double)tb.denom;
+      policy.period       = (uint32_t)(2900000.0 / ns_per_tick);
+      policy.computation  = (uint32_t)( 750000.0 / ns_per_tick);
+      policy.constraint   = (uint32_t)(2900000.0 / ns_per_tick);
+      policy.preemptible  = TRUE;
+      return thread_policy_set(pthread_mach_thread_np(pthread_self()),
+            THREAD_TIME_CONSTRAINT_POLICY, (thread_policy_t)&policy,
+            THREAD_TIME_CONSTRAINT_POLICY_COUNT) == KERN_SUCCESS;
+   }
 #elif defined(RTHREADS_HAVE_SCHEDPARAM)
    /* Real-time round-robin at a middling priority: above every
     * time-shared thread, below anything the system runs at the top of

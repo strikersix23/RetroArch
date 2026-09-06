@@ -163,6 +163,8 @@ void   Sleep(DWORD ms);
 void   CoTaskMemFree(void *p);
 
 /* --- mmdevice_common.h ----------------------------------------------- */
+bool        mmdevice_com_init(void);
+void        mmdevice_com_uninit(bool init);
 void       *mmdevice_init_device(const char *id, unsigned data_flow);
 const char *mmdevice_hresult_name(int hr);
 void       *mmdevice_list_new(const void *u, unsigned data_flow);
@@ -192,6 +194,9 @@ void fake_device_configure(unsigned rate, REFERENCE_TIME min_period_hns,
  * AUDCLNT_E_ENGINE_PERIODICITY_LOCKED. */
 void fake_device_configure_engine(unsigned engine_min_frames, unsigned locked_period_frames);
 void fake_device_stats(fake_device_stats_t *out);
+/* Outstanding mmdevice_com_init() references; zero once every driver
+ * instance opened in the test has been freed. */
+int  fake_com_refs(void);
 
 /* The device-notification thread the driver starts: the fake gives it
  * nothing to do, and the driver posts it WM_QUIT on stop. */

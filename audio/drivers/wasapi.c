@@ -69,7 +69,10 @@ enum wasapi_flags
    /* Shared client initialised via IAudioClient3 at the engine's minimum
     * period rather than its default. The client FIFO keeps its
     * audio_latency size; only the release cadence is finer. */
-   WASAPI_FLG_LOWLAT    = (1 << 3)
+   WASAPI_FLG_LOWLAT    = (1 << 3),
+   /* wasapi_init brought COM up on its thread; wasapi_free releases
+    * it after the last COM object.  See mmdevice_com_init(). */
+   WASAPI_FLG_COM       = (1 << 4)
 };
 
 typedef struct
@@ -819,6 +822,9 @@ typedef struct
    size_t engine_buffer_size;
    bool exclusive;
    bool running;
+   /* open_mic brought COM up on its thread; close_mic releases it
+    * after the last COM object.  See mmdevice_com_init(). */
+   bool com_init;
 } wasapi_microphone_handle_t;
 
 typedef struct wasapi_microphone
@@ -844,6 +850,7 @@ static void wasapi_microphone_close_mic(void *driver_context, void *mic_context)
    RELEASE(mic->capture);
    RELEASE(mic->client);
    RELEASE(mic->device);
+   mmdevice_com_uninit(mic->com_init);
 
    if (mic->buffer)
       fifo_free(mic->buffer);
@@ -1140,6 +1147,7 @@ static void *wasapi_microphone_open_mic(void *driver_context, const char *device
       return NULL;
 
    mic->exclusive         = exclusive_mode;
+   mic->com_init          = mmdevice_com_init();
    mic->device            = (IMMDevice*)mmdevice_init_device(device, 1 /* eCapture */);
 
    /* If we requested a particular capture device, but couldn't open it... */
@@ -1266,6 +1274,7 @@ error:
    RELEASE(mic->capture);
    RELEASE(mic->client);
    RELEASE(mic->device);
+   mmdevice_com_uninit(mic->com_init);
 
    if (mic->read_event)
       CloseHandle(mic->read_event);
@@ -1381,6 +1390,8 @@ static void *wasapi_init(const char *dev_id, unsigned rate, unsigned latency,
    if (!w)
       return NULL;
 
+   if (mmdevice_com_init())
+      w->flags              |= WASAPI_FLG_COM;
    w->device                 = (IMMDevice*)mmdevice_init_device(dev_id, 0 /* eRender */);
    if (!w->device && dev_id)
       w->device              = (IMMDevice*)mmdevice_init_device(NULL, 0 /* eRender */);
@@ -1605,6 +1616,7 @@ error:
    RELEASE(w->renderer);
    RELEASE(w->client);
    RELEASE(w->device);
+   mmdevice_com_uninit((w->flags & WASAPI_FLG_COM) != 0);
 
    if (w->write_event)
       CloseHandle(w->write_event);
@@ -1937,6 +1949,7 @@ static void wasapi_free(void *wh)
    RELEASE(w->renderer);
    RELEASE(w->client);
    RELEASE(w->device);
+   mmdevice_com_uninit((w->flags & WASAPI_FLG_COM) != 0);
 
    if (w->buffer)
       fifo_free(w->buffer);

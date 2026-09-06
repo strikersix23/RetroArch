@@ -377,6 +377,11 @@ static HRESULT d_activate(IMMDevice *t, REFIID iid, DWORD ctx, void *pa, void **
 static const IMMDeviceVtbl device_vtbl = { d_qi, d_addref, d_release, d_activate };
 static IMMDevice g_device = { &device_vtbl, NULL };
 
+/* Counted, so a leak or double release shows in the test. */
+static int g_com_refs = 0;
+bool  mmdevice_com_init(void) { g_com_refs++; return true; }
+void  mmdevice_com_uninit(bool init) { if (init) g_com_refs--; }
+int   fake_com_refs(void) { return g_com_refs; }
 void *mmdevice_init_device(const char *id, unsigned data_flow) { (void)id; (void)data_flow; return &g_device; }
 const char *mmdevice_hresult_name(int hr)
 {

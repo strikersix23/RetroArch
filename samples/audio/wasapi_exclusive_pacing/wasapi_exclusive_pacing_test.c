@@ -260,6 +260,9 @@ int main(int argc, char **argv)
       CHECK(dropped_pct < 1.0, "scenario %u: %.2f%% dropped", i, dropped_pct);
    }
 
+   /* Every init took COM up on its thread and every free put it back. */
+   CHECK(fake_com_refs() == 0, "COM references left after free: %d", fake_com_refs());
+
    if (failures)
    {
       printf("%u failure(s)\n", failures);

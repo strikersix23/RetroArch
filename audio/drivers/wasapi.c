@@ -1602,6 +1602,25 @@ static void *wasapi_init(const char *dev_id, unsigned rate, unsigned latency,
    if (new_rate)
       *new_rate = rate;
 
+   /* The device stage behind what buffer_size() reports, for the
+    * statistics overlay. Exclusive: buffer_size() is the fifo, and the
+    * endpoint buffer - one period, event-driven - is the device's own.
+    * Shared: buffer_size() spans fifo and engine buffer already, so
+    * what remains is the engine's own latency between that buffer and
+    * the endpoint, which GetStreamLatency gives. */
+   {
+      size_t device_frames = 0;
+      if (w->flags & WASAPI_FLG_EXCLUSIVE)
+         device_frames = frame_count;
+      else
+      {
+         REFERENCE_TIME stream_latency = 0;
+         if (SUCCEEDED(_IAudioClient_GetStreamLatency(w->client, &stream_latency)))
+            device_frames = (size_t)((uint64_t)stream_latency * rate / 10000000);
+      }
+      audio_driver_set_device_latency(device_frames);
+   }
+
    if (!wasapi_imm_start_thread(w))
       goto error;
 

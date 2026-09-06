@@ -48,3 +48,7 @@ void RARCH_DBG(const char *fmt, ...)
    vprintf(fmt, ap);
    va_end(ap);
 }
+
+/* The device stage the driver reports for the statistics overlay;
+ * nothing here reads it. */
+void audio_driver_set_device_latency(size_t frames) { (void)frames; }

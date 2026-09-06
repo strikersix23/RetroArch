@@ -171,16 +171,11 @@ static void ui_window_cocoa_set_droppable(void *data, bool droppable)
    if (droppable)
    {
       /* The same two types CocoaView registers for itself and reads
-       * back in -draggingEntered: / -performDragOperation:.  These are
-       * the 10.0 names; the 10.6 NSPasteboardTypeColor and 10.13
-       * NSPasteboardTypeFileURL spellings are different type strings,
-       * which the drop handler does not look for, and the classic
-       * ones are still delivered by every release. */
-      NSArray *types;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-      types = [[NSArray alloc] initWithObjects:NSColorPboardType, NSFilenamesPboardType, nil];
-#pragma GCC diagnostic pop
+       * back in -draggingEntered:.  The 10.6 NSPasteboardTypeColor
+       * and 10.13 NSPasteboardTypeFileURL are different type strings,
+       * which the drop handler does not look for. */
+      NSArray *types = [[NSArray alloc] initWithObjects:
+            RARCH_PBOARD_TYPE_COLOR, RARCH_PBOARD_TYPE_FILENAMES, nil];
       [[cocoa_view window] registerForDraggedTypes:types];
       RARCH_RELEASE(types);
    }

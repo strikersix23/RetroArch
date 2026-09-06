@@ -16,7 +16,6 @@
 
 #import <AvailabilityMacros.h>
 #include <sys/stat.h>
-#include <objc/objc-runtime.h>
 #ifdef HAVE_COCOATOUCH
 /* Grand Central Dispatch is used by the iOS/tvOS code only; the macOS
  * path stays on Foundation and CoreFoundation, which every target
@@ -301,7 +300,7 @@ void rarch_stop_draw_observer(void)
 
 #if TARGET_OS_OSX
    [self setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
-   NSArray *array = [NSArray arrayWithObjects:NSColorPboardType, NSFilenamesPboardType, nil];
+   NSArray *array = [NSArray arrayWithObjects:RARCH_PBOARD_TYPE_COLOR, RARCH_PBOARD_TYPE_FILENAMES, nil];
    [self registerForDraggedTypes:array];
 
    video_driver_display_type_set(RARCH_DISPLAY_OSX);
@@ -596,7 +595,7 @@ void rarch_stop_draw_observer(void)
     NSDragOperation sourceDragMask = [sender draggingSourceOperationMask];
     NSPasteboard           *pboard = [sender draggingPasteboard];
 
-    if ( [[pboard types] containsObject:NSFilenamesPboardType] )
+    if ( [[pboard types] containsObject:RARCH_PBOARD_TYPE_FILENAMES] )
     {
         if (sourceDragMask & NSDragOperationCopy)
             return NSDragOperationCopy;

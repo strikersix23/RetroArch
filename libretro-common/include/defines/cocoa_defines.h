@@ -133,6 +133,26 @@
 #define RARCH_PROTO_NSWINDOWDELEGATE
 #endif
 
+/* The two pasteboard types the drop handler reads.  These are the
+ * values of the 10.0 constants NSColorPboardType and
+ * NSFilenamesPboardType, which the 10.14 SDK marks deprecated; the
+ * strings themselves are what AppKit delivers on every release, so
+ * they are spelled out here and no SDK has anything to say about it. */
+#define RARCH_PBOARD_TYPE_COLOR     @"NSColorPboardType"
+#define RARCH_PBOARD_TYPE_FILENAMES @"NSFilenamesPboardType"
+
+/* -[NSView convertRectToBacking:] is 10.7; declaring it in a category
+ * on SDKs that predate it gives the compiler the signature so the call
+ * can be written as a plain message and the runtime answer, checked
+ * with respondsToSelector:, decides whether it is sent.  Nothing is
+ * implemented here: the real method is used where it exists. */
+#if TARGET_OS_OSX && defined(MAC_OS_X_VERSION_MAX_ALLOWED) && (MAC_OS_X_VERSION_MAX_ALLOWED < 1070) && defined(__OBJC__)
+#import <AppKit/NSView.h>
+@interface NSView (RARCHBackingCompat)
+- (NSRect)convertRectToBacking:(NSRect)rect;
+@end
+#endif
+
 /* ARC vs MRR macros.  Under ARC, release/autorelease are forbidden
  * (compile error); under MRR (Manual Retain-Release / MRC) they are
  * required.  These macros expand to the right thing for the current

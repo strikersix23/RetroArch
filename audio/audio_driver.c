@@ -1016,21 +1016,31 @@ static void audio_driver_sink_update(audio_driver_state_t *audio_st,
       {
          if (!audio_st->sink_implausible_warned)
          {
+            double src_hz   = audio_st->sink_sum_offered * 1e6
+                  / (double)audio_st->sink_sum_usec;
+            double dev_ppm  = (audio_st->sink_rate_hz / (double)rate - 1.0) * 1e6;
+            double src_ppm  = (src_hz / (double)rate - 1.0) * 1e6;
+            const char *why;
             audio_st->sink_implausible_warned = true;
-            /* Print the figure that was judged - the ratio between the
-             * two counts - and both sides of it, so the line explains
-             * itself. Printing only the device against nominal read as
-             * a contradiction: a device at +94 ppm described as too far
-             * off to be a crystal, when what was out of range was the
-             * ratio against a source running -400. */
-            RARCH_WARN("[Audio] Sink rate: the device takes %.1f Hz (%+.0f ppm of %u) but the source produces %.1f Hz (%+.0f ppm), a ratio of %+.0f ppm. That is too far apart to be two crystals, so it is not clock drift to correct - driver \"%s\" and the frontend are most likely not counting the same thing. Not biasing resampling; the rates are still shown.\n",
-                  audio_st->sink_rate_hz,
-                  (audio_st->sink_rate_hz / (double)rate - 1.0) * 1e6, rate,
-                  audio_st->sink_sum_offered * 1e6 / (double)audio_st->sink_sum_usec,
-                  (audio_st->sink_sum_offered * 1e6
-                     / (double)audio_st->sink_sum_usec / (double)rate - 1.0) * 1e6,
-                  (r - 1.0) * 1e6,
-                  audio->ident ? audio->ident : "?");
+            /* Say which side moved. A device within a crystal's
+             * tolerance against a source well outside it is the
+             * source's clock - with audio sync off, the frame timer or
+             * the display, and a slow timer reads as a slow source -
+             * which rate control absorbs and a bias should not; the
+             * other way round, or both off, the two counts are not
+             * measuring the same thing. */
+            if (fabs(dev_ppm) <= AUDIO_SINK_BIAS_PLAUSIBLE * 1e6
+                  && fabs(src_ppm) > AUDIO_SINK_BIAS_PLAUSIBLE * 1e6)
+               why = "That is the source's clock, not the device's: with audio sync off the core is paced by the frame timer or the display, and rate control absorbs the difference. A bias is for crystals";
+            else if (fabs(src_ppm) <= AUDIO_SINK_BIAS_PLAUSIBLE * 1e6
+                  && fabs(dev_ppm) > AUDIO_SINK_BIAS_PLAUSIBLE * 1e6)
+               why = "That is too far off for a crystal, so the driver is most likely not counting device time";
+            else
+               why = "That is too far apart to be two crystals, so the driver and the frontend are most likely not counting the same thing";
+            RARCH_WARN("[Audio] Sink rate: the device takes %.1f Hz (%+.0f ppm of %u) and the source produces %.1f Hz (%+.0f ppm), a ratio of %+.0f ppm. %s. Not biasing resampling (driver \"%s\"); the rates are still shown.\n",
+                  audio_st->sink_rate_hz, dev_ppm, rate,
+                  src_hz, src_ppm, (r - 1.0) * 1e6, why,
+                  audio_driver_get_ident());
          }
          audio_st->sink_apply_at = now_usec + AUDIO_SINK_BASELINE_USEC;
          return;

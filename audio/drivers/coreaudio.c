@@ -40,6 +40,7 @@
 
 #include <boolean.h>
 #include <retro_atomic.h>
+#include <features/features_cpu.h>
 
 #if TARGET_OS_IPHONE
 #include <AudioToolbox/AudioToolbox.h>
@@ -144,6 +145,8 @@ typedef struct coreaudio
     * power-of-two capacity is only the container for. Free space,
     * buffer_size() and the wait are counted against this. */
    size_t usable;
+   /* The HAL IO buffer asked for, in frames; what one pull takes. */
+   unsigned io_frames;
    size_t write_ptr;          /* Only touched by main thread */
    size_t read_ptr;           /* Only touched by audio callback */
    retro_atomic_size_t filled; /* Samples currently in buffer */
@@ -151,6 +154,12 @@ typedef struct coreaudio
     * unit started. Written only by the callback, read by the frontend
     * through coreaudio_frames_consumed(). */
    retro_atomic_size_t consumed;
+   /* Pulls the callback could not fill from the ring. Counted there,
+    * reported from write_avail() on the frontend's thread - at most
+    * once a second while it grows - and in full on free(). */
+   retro_atomic_size_t underruns;
+   size_t underruns_logged;
+   retro_time_t underruns_logged_at;
 
    /* The output unit: ComponentInstance or AudioComponentInstance,
     * both of which are this type on every SDK. */
@@ -371,6 +380,8 @@ static bool coreaudio_update_converter(coreaudio_t *dev,
    return true;
 }
 
+static void coreaudio_report_underruns(coreaudio_t *dev, bool final);
+
 static void coreaudio_free(void *data)
 {
    coreaudio_t *dev = (coreaudio_t*)data;
@@ -381,6 +392,7 @@ static void coreaudio_free(void *data)
    if (dev->dev_alive)
    {
       AudioOutputUnitStop(dev->dev);
+      coreaudio_report_underruns(dev, true);
       ca_cm.close(dev->dev);
    }
 
@@ -426,6 +438,7 @@ static OSStatus coreaudio_audio_write_cb(void *userdata,
       if (avail > 0)
          rb_read(dev, outbuf, avail);
       memset(outbuf + avail, 0, (frames_needed - avail) * sizeof(float));
+      retro_atomic_fetch_add_size(&dev->underruns, 1);
    }
    else
       rb_read(dev, outbuf, frames_needed);
@@ -702,6 +715,7 @@ static void *coreaudio_init(const char *device,
          period = 512;
       AudioUnitSetProperty(dev->dev, kAudioDevicePropertyBufferFrameSize,
             kAudioUnitScope_Global, 0, &period, sizeof(period));
+      dev->io_frames = period;
    }
 #endif
 
@@ -725,6 +739,7 @@ static void *coreaudio_init(const char *device,
 
    retro_atomic_size_init(&dev->filled, 0);
    retro_atomic_size_init(&dev->consumed, 0);
+   retro_atomic_size_init(&dev->underruns, 0);
    dev->write_ptr = 0;
    dev->read_ptr  = 0;
 
@@ -1021,9 +1036,25 @@ static bool coreaudio_start(void *data, bool is_shutdown)
 
 static bool coreaudio_use_float(void *data) { return true; }
 
+static void coreaudio_report_underruns(coreaudio_t *dev, bool final)
+{
+   size_t n = retro_atomic_load_acquire_size(&dev->underruns);
+   retro_time_t now;
+   if (n == dev->underruns_logged)
+      return;
+   now = cpu_features_get_time_usec();
+   if (!final && now - dev->underruns_logged_at < 1000000)
+      return;
+   RARCH_WARN("[CoreAudio] %u underrun%s so far: the callback found less than one pull (%u frames) in the ring.\n",
+         (unsigned)n, n == 1 ? "" : "s", (unsigned)dev->io_frames);
+   dev->underruns_logged    = n;
+   dev->underruns_logged_at = now;
+}
+
 static size_t coreaudio_write_avail(void *data)
 {
    coreaudio_t *dev = (coreaudio_t*)data;
+   coreaudio_report_underruns(dev, false);
    return rb_write_avail(dev) * sizeof(float);
 }
 

@@ -1449,11 +1449,14 @@ static void *wasapi_init(const char *dev_id, unsigned rate, unsigned latency,
             (float)frame_count * 1000.0f / rate,
             (unsigned)(fifo_bytes / w->frame_size * 1000 / rate / 2
                + frame_count * 1000 / rate));
-      /* With audio sync off the writer does not wait: the fifo must
-       * take a whole frame of core audio at once - 16.7 ms at 60 fps -
-       * or the remainder is dropped, every frame. No driver can hold
-       * more than its buffer; the setting is what decides. */
-      if (     !config_get_ptr()->bools.audio_sync
+      /* With audio sync off the frame-synchronous writer does not
+       * wait: the fifo must take a whole frame of core audio at once -
+       * 16.7 ms at 60 fps - or the remainder is dropped, every frame.
+       * The threaded pipeline's writer hands over at most half the
+       * buffer a pass and keeps the rest in its ring, so it drops
+       * nothing at any size. */
+      if (     !settings->bools.audio_sync
+            && !settings->bools.audio_threaded_pipeline
             && fifo_bytes / w->frame_size * 1000 / rate < 20)
          RARCH_WARN("[WASAPI] Audio sync is off and the %u ms buffer holds less than one frame of audio at 60 fps; a latency setting of 20 ms or more avoids dropping the remainder each frame.\n",
                (unsigned)(fifo_bytes / w->frame_size * 1000 / rate));

@@ -44,6 +44,8 @@
 #include "../../tasks/tasks_internal.h"
 #include "../../performance_counters.h"
 
+#include <compat/strl.h>
+
 #include "../../configuration.h"
 #include "../../retroarch.h"
 #include "../../runloop.h"
@@ -51,7 +53,6 @@
 
 #ifdef HAVE_THREADS
 #include "../../gfx/video_thread_wrapper.h"
-#include <compat/strl.h>
 #endif
 
 #define MAX_TOUCH 16
@@ -700,7 +701,38 @@ void android_input_flush_pending_state(void)
       command_event(CMD_EVENT_SAVE_FILES, NULL);
 
    if (settings->bools.config_save_on_exit)
+   {
+      video_driver_state_t *video_st = video_state_get_ptr();
+      char live_driver[32];
+
+      live_driver[0] = '\0';
+
+      /* A core that forces its own renderer overwrites video_driver
+       * with the forced name and parks the configured one in
+       * cached_driver_id. Writing the config in that state persists the
+       * core's choice as the user's, so a driver picked from the menu
+       * is silently replaced by whatever the last loaded core wanted.
+       * main_exit() restores the cached name before it saves; do the
+       * same here.
+       *
+       * Unlike main_exit(), swap the live value back afterwards: the
+       * activity may be resumed, and the renderer actually in use does
+       * not change just because the app went to the background. */
+      if (video_st->cached_driver_id[0])
+      {
+         strlcpy(live_driver, settings->arrays.video_driver,
+               sizeof(live_driver));
+         configuration_set_string(settings,
+               settings->arrays.video_driver,
+               video_st->cached_driver_id);
+      }
+
       command_event(CMD_EVENT_MENU_SAVE_CURRENT_CONFIG, NULL);
+
+      if (live_driver[0])
+         configuration_set_string(settings,
+               settings->arrays.video_driver, live_driver);
+   }
 }
 
 static void android_input_poll_main_cmd(void)

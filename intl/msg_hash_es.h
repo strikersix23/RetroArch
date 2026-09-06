@@ -291,6 +291,7 @@ static const struct
    char s_affd948c[22];
    char s_d2d4c381[29];
    char s_a95aa0fc[38];
+   char s_532d60d5[54];
    char s_13d32d54[22];
    char s_91e41658[22];
    char s_30375dfa[33];
@@ -2466,6 +2467,8 @@ static const struct
    char s_8a24406f[62];
    char s_8c6b0fea[74];
    char s_5977d6d8[49];
+   char s_f46c7b83_0[500];
+   char s_f46c7b83_1[219];
    char s_cb67f2a4[43];
    char s_3c3598a9[48];
    char s_3bac47bd[444];
@@ -4701,6 +4704,7 @@ static const struct
    "Calidad de remuestreo",
    "Respetar el modo en silencio",
    "Silenciar audio durante el rebobinado",
+   "Estimaci\303\263n de la frecuencia de recepci\303\263n (\302\253sink\302\273)",
    "Estado: no disponible",
    "Estado: reproduciendo",
    "Estado: reproduciendo (en bucle)",
@@ -6937,6 +6941,15 @@ static const struct
    "Silencia todo el audio si el modo en silencio est\303\241 activado.",
    "Silencia autom\303\241ticamente el audio al utilizar la funci\303\263n de rebobinado.",
    "Cambia los ajustes de entrada y salida de audio.",
+   "Mide la velocidad con la que el dispositivo de audio consume muestras reales en comparaci\303"
+   "\263n con el reloj del sistema para recortar el remuestreador en base a esa cantidad. Los crista"
+   "les de todas las tarjetas de sonido tienen un desajuste de unas pocas partes por mill\303\263n; "
+   "al desactivar la sincronizaci\303\263n, no hay nada que corrija el desajuste y el b\303\272fer s"
+   "e desplaza lentamente hasta un fallo que no se podr\303\241 arreglar con ning\303\272n tama\303"
+   "\261o de b\303\272fer. La correcci\303\263n es min\303\272scula e inaudible. Al acti",
+   "var la sincronizaci\303\263n, el n\303\272cleo ya est\303\241 siguiendo al dispositivo y no se a"
+   "plicar\303\241 nada. Solo funciona con aquellos controladores que informan del consumo, la super"
+   "posici\303\263n mostrar\303\241 esta frecuencia como \302\253sink\302\273.",
    "Sincroniza el audio. Se recomienda su uso.",
    "Cambia los ajustes de sincronizaci\303\263n de audio.",
    "Remuestrea, filtra y mezcla el audio en el hilo de audio en vez de hacerlo en cada fotograma. Ma"
@@ -9427,7 +9440,7 @@ static const struct
  * compiler that pads this struct fails here instead of
  * misindexing at runtime. */
 typedef char msg_hash_es_blob_check[
-      (sizeof(msg_hash_es_blob) == (211097u
+      (sizeof(msg_hash_es_blob) == (211870u
 #ifdef ANDROID
        + 329u
 #endif
@@ -10120,6 +10133,7 @@ static const uint32_t msg_hash_es_ids[] =
    (uint32_t)MENU_ENUM_LABEL_VALUE_AUDIO_RESAMPLER_QUALITY,
    (uint32_t)MENU_ENUM_LABEL_VALUE_AUDIO_RESPECT_SILENT_MODE,
    (uint32_t)MENU_ENUM_LABEL_VALUE_AUDIO_REWIND_MUTE,
+   (uint32_t)MENU_ENUM_LABEL_VALUE_AUDIO_SINK_RATE_ESTIMATION,
    (uint32_t)MENU_ENUM_LABEL_VALUE_AUDIO_STREAM_STATE_NONE,
    (uint32_t)MENU_ENUM_LABEL_VALUE_AUDIO_STREAM_STATE_PLAYING,
    (uint32_t)MENU_ENUM_LABEL_VALUE_AUDIO_STREAM_STATE_PLAYING_LOOPED,
@@ -12292,6 +12306,7 @@ static const uint32_t msg_hash_es_ids[] =
    (uint32_t)MENU_ENUM_SUBLABEL_AUDIO_RESPECT_SILENT_MODE,
    (uint32_t)MENU_ENUM_SUBLABEL_AUDIO_REWIND_MUTE,
    (uint32_t)MENU_ENUM_SUBLABEL_AUDIO_SETTINGS,
+   (uint32_t)MENU_ENUM_SUBLABEL_AUDIO_SINK_RATE_ESTIMATION,
    (uint32_t)MENU_ENUM_SUBLABEL_AUDIO_SYNC,
    (uint32_t)MENU_ENUM_SUBLABEL_AUDIO_SYNCHRONIZATION_SETTINGS,
    (uint32_t)MENU_ENUM_SUBLABEL_AUDIO_THREADED_PIPELINE,

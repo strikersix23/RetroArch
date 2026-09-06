@@ -707,6 +707,63 @@ static void *coreaudio_init(const char *device,
          (unsigned)(dev->capacity * sizeof(float)),
          (float)dev->capacity * 1000.0f / (*new_rate) / 2.0f);
 
+#if !TARGET_OS_IPHONE
+   /* The device's own stage behind the ring, for the statistics
+    * overlay: the HAL's IO buffer, which the render callback fills a
+    * whole one of at a time, the device's latency and safety offset,
+    * and the output stream's latency - the sum a HAL client is told to
+    * expect between a render and the jack. Each is a property the
+    * device or stream may lack; whichever it has are summed. */
+   {
+      AudioDeviceID device_id = 0;
+      UInt32 device_size      = sizeof(device_id);
+      if (AudioUnitGetProperty(dev->dev, kAudioOutputUnitProperty_CurrentDevice,
+               kAudioUnitScope_Global, 0, &device_id, &device_size) == noErr
+            && device_id != 0)
+      {
+         static const AudioObjectPropertySelector dev_sel[3] = {
+            kAudioDevicePropertyBufferFrameSize,
+            kAudioDevicePropertyLatency,
+            kAudioDevicePropertySafetyOffset
+         };
+         AudioObjectPropertyAddress prop;
+         AudioStreamID stream_id = 0;
+         UInt32 total = 0, size, i;
+         prop.mScope   = kAudioDevicePropertyScopeOutput;
+         prop.mElement = CA_ELEMENT_MAIN;
+         for (i = 0; i < 3; i++)
+         {
+            UInt32 value   = 0;
+            size           = sizeof(value);
+            prop.mSelector = dev_sel[i];
+            if (     AudioObjectHasProperty(device_id, &prop)
+                  && AudioObjectGetPropertyData(device_id, &prop, 0, NULL,
+                        &size, &value) == noErr)
+               total += value;
+         }
+         /* The first output stream's latency; the property lives on
+          * the stream object, not the device. */
+         prop.mSelector = kAudioDevicePropertyStreams;
+         size           = sizeof(stream_id);
+         if (     AudioObjectHasProperty(device_id, &prop)
+               && AudioObjectGetPropertyData(device_id, &prop, 0, NULL,
+                     &size, &stream_id) == noErr
+               && stream_id != 0)
+         {
+            UInt32 value   = 0;
+            size           = sizeof(value);
+            prop.mSelector = kAudioStreamPropertyLatency;
+            prop.mScope    = kAudioObjectPropertyScopeGlobal;
+            if (     AudioObjectHasProperty(stream_id, &prop)
+                  && AudioObjectGetPropertyData(stream_id, &prop, 0, NULL,
+                        &size, &value) == noErr)
+               total += value;
+         }
+         audio_driver_set_device_latency((size_t)total);
+      }
+   }
+#endif
+
    if (AudioOutputUnitStart(dev->dev) != noErr)
       goto error;
 

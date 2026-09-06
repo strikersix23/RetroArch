@@ -486,6 +486,17 @@ static size_t pulse_write_avail(void *data)
    _len = pa_stream_writable_size(pa->stream);
 
    audio_driver_set_buffer_size(pa->buffer_size); /* Can change spuriously. */
+   {
+      /* The sink's own latency behind the stream buffer, for the
+       * statistics overlay: sink_usec is the part of
+       * pa_stream_get_latency() that is not the server's queue. Only
+       * known once timing data has arrived, so the pointer is NULL
+       * until then, and it can change with the sink. */
+      const pa_timing_info *ti = pa_stream_get_timing_info(pa->stream);
+      if (ti && pa->rate)
+         audio_driver_set_device_latency((size_t)
+               ((uint64_t)ti->sink_usec * pa->rate / 1000000));
+   }
    pa_threaded_mainloop_unlock(pa->mainloop);
    return _len;
 }

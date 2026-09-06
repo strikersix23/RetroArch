@@ -176,6 +176,10 @@ static size_t ja_find_buffersize(jack_t *jd, int latency, unsigned out_rate)
    }
 
    RARCH_LOG("[JACK] Jack latency is %d frames.\n", jack_latency);
+   /* The graph's own stage behind the ring, for the statistics
+    * overlay: what the port reports for playback, at the JACK rate the
+    * driver runs at. */
+   audio_driver_set_device_latency((size_t)jack_latency);
 
    buffer_frames     = frames - jack_latency;
    min_buffer_frames = jack_get_buffer_size(jd->client) * 2;

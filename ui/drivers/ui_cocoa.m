@@ -1239,9 +1239,11 @@ static void open_document_handler(
    if (!result)
       return;
 
+#ifdef HAVE_LIBRETRODB
    if (filebrowser_get_type() == FILEBROWSER_SCAN_FILE)
       action_scan_file(state->result, NULL, 0, 0);
    else
+#endif
    {
       path_set(RARCH_PATH_CONTENT, state->result);
 

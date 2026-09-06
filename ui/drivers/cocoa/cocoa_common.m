@@ -16,7 +16,13 @@
 
 #import <AvailabilityMacros.h>
 #include <sys/stat.h>
+#include <objc/objc-runtime.h>
+#ifdef HAVE_COCOATOUCH
+/* Grand Central Dispatch is used by the iOS/tvOS code only; the macOS
+ * path stays on Foundation and CoreFoundation, which every target
+ * release has. */
 #include <dispatch/dispatch.h>
+#endif
 #include <CoreFoundation/CoreFoundation.h>
 
 #include <retro_atomic.h>
@@ -946,7 +952,7 @@ void *cocoa_screen_get_chosen(void)
  * it simply calls straight through, so the non-threaded path is
  * unchanged.
  *
- * The block is scheduled in BOTH kCFRunLoopCommonModes and a private
+ * The job is scheduled in BOTH kCFRunLoopCommonModes and a private
  * runloop mode:
  *  - common modes drain it whenever the main loop is running normally
  *    (e.g. show_mouse from the worker mid-session);
@@ -957,14 +963,64 @@ void *cocoa_screen_get_chosen(void)
  *    from other modes (in particular the RetroArch draw observer) run
  *    reentrantly under the wait.
  * The mode string literal below must stay in sync with the one in
- * video_thread_wrapper.c. */
+ * video_thread_wrapper.c.
+ *
+ * Written without blocks or GCD: -performSelectorOnMainThread:
+ * withObject:waitUntilDone:modes: (Foundation, 10.0) carries the job
+ * over in exactly those modes, and the caller waits on an rthreads
+ * condition so the stall diagnostic keeps its cadence.  That makes the
+ * trampoline buildable by any Objective-C compiler and runnable on
+ * any release. */
+@interface CocoaMainThreadJob : NSObject
+{
+   void (*_func)(void *userdata);
+   void  *_userdata;
+   slock_t *_lock;
+   scond_t *_cond;
+   bool _done;
+}
+- (id)initWithFunc:(void (*)(void *))func userdata:(void *)userdata
+      lock:(slock_t *)lock cond:(scond_t *)cond;
+- (void)run;
+- (bool)isDone;
+@end
+
+@implementation CocoaMainThreadJob
+
+- (id)initWithFunc:(void (*)(void *))func userdata:(void *)userdata
+      lock:(slock_t *)lock cond:(scond_t *)cond
+{
+   self = [super init];
+   if (!self)
+      return self;
+   _func     = func;
+   _userdata = userdata;
+   _lock     = lock;
+   _cond     = cond;
+   _done     = false;
+   return self;
+}
+
+- (void)run
+{
+   _func(_userdata);
+   slock_lock(_lock);
+   _done = true;
+   scond_signal(_cond);
+   slock_unlock(_lock);
+}
+
+- (bool)isDone { return _done; }
+
+@end
+
 void cocoa_main_thread_sync(void (*func)(void *userdata), void *userdata);
 void cocoa_main_thread_sync(void (*func)(void *userdata), void *userdata)
 {
-   dispatch_semaphore_t done;
-   CFRunLoopRef main_loop;
-   CFArrayRef modes;
-   const void *mode_entries[2];
+   CocoaMainThreadJob *job;
+   NSArray *modes;
+   slock_t *lock;
+   scond_t *cond;
 
    if (sthread_is_main_thread())
    {
@@ -972,33 +1028,37 @@ void cocoa_main_thread_sync(void (*func)(void *userdata), void *userdata)
       return;
    }
 
-   done            = dispatch_semaphore_create(0);
-   main_loop       = CFRunLoopGetMain();
-   mode_entries[0] = kCFRunLoopCommonModes;
-   mode_entries[1] = CFSTR("com.libretro.RetroArch.MainThreadTrampoline");
-   modes           = CFArrayCreate(kCFAllocatorDefault, mode_entries, 2,
-         &kCFTypeArrayCallBacks);
+   lock  = slock_new();
+   cond  = scond_new();
+   job   = [[CocoaMainThreadJob alloc] initWithFunc:func userdata:userdata
+         lock:lock cond:cond];
+   /* kCFRunLoopCommonModes is toll-free bridged to the NSString the
+    * Foundation call wants, and is the 10.0 spelling of the 10.5
+    * NSRunLoopCommonModes. */
+   modes = [[NSArray alloc] initWithObjects:
+         (BRIDGE NSString *)kCFRunLoopCommonModes,
+         @"com.libretro.RetroArch.MainThreadTrampoline", nil];
 
-   CFRunLoopPerformBlock(main_loop, modes, ^{
-      func(userdata);
-      dispatch_semaphore_signal(done);
-   });
-   CFRunLoopWakeUp(main_loop);
+   /* Foundation retains the job until it has run, so the reference
+    * below is released as soon as the perform is queued. */
+   [job performSelectorOnMainThread:@selector(run) withObject:nil
+         waitUntilDone:NO modes:modes];
+   CFRunLoopWakeUp(CFRunLoopGetMain());
 
    /* Wait for completion.  Waiting forever (with periodic diagnostics)
     * is deliberate: falling back to running func() on this thread after
     * a timeout would risk double-execution once the main thread finally
-    * drains the block, which is far worse than a loggable stall. */
-   while (dispatch_semaphore_wait(done,
-            dispatch_time(DISPATCH_TIME_NOW, (int64_t)5 * NSEC_PER_SEC)))
-      RARCH_ERR("[Cocoa]: Main-thread trampoline stalled; main runloop is not draining scheduled blocks.\n");
+    * drains the job, which is far worse than a loggable stall. */
+   slock_lock(lock);
+   while (![job isDone])
+      if (!scond_wait_timeout(cond, lock, 5000000))
+         RARCH_ERR("[Cocoa]: Main-thread trampoline stalled; main runloop is not draining scheduled jobs.\n");
+   slock_unlock(lock);
 
-   CFRelease(modes);
-#if OS_OBJECT_USE_OBJC
-   RARCH_RELEASE(done);
-#else
-   dispatch_release(done);
-#endif
+   RARCH_RELEASE(modes);
+   RARCH_RELEASE(job);
+   scond_free(cond);
+   slock_free(lock);
 }
 
 /* One condvar-wait iteration for a caller that may be the main thread and

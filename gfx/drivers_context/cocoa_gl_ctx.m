@@ -277,10 +277,17 @@ static void cocoa_gl_gfx_ctx_get_video_size(void *data,
 
    if (backing)
    {
-      CGRect bounds                = CGRectMake(0, 0,
+      /* Sent through objc_msgSend_stret so an SDK that predates the
+       * method (10.5, 10.6) still declares the NSRect result; the
+       * message is only sent where the view answered for it above.
+       * Every macOS target here is 32-bit ppc or i386, or x86_64: on
+       * all of them an NSRect comes back through the stret path. */
+      NSRect bounds                = NSMakeRect(0, 0,
             CGRectGetWidth(cgrect), CGRectGetHeight(cgrect));
-      cgrect                       = NSRectToCGRect(
-            [g_view convertRectToBacking:bounds]);
+      NSRect backing_rect          = ((NSRect (*)(id, SEL, NSRect))
+            objc_msgSend_stret)(g_view, @selector(convertRectToBacking:),
+               bounds);
+      cgrect                       = NSRectToCGRect(backing_rect);
    }
 
    *width                          = CGRectGetWidth(cgrect);

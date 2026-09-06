@@ -155,6 +155,8 @@ UINavigationControllerDelegate> {
  * full-screen window while that mode is active, the main window
  * otherwise. */
 - (NSWindow *)hostWindow;
+- (void)setupMainWindow;
+- (void)updateWindowedSize:(gfx_ctx_mode_t)mode;
 
 @end
 #endif

@@ -272,11 +272,18 @@ $(OBJDIR)/%.o: %.m
 # RetroArch Objective-C code is MRC-written (explicit retain/release,
 # NSAutoreleasePool, etc.) and would fail to compile under ARC — so
 # we cannot set -fobjc-arc globally. Xcode does the equivalent via
-# per-file CLANG_ENABLE_OBJC_ARC=YES build settings.
-$(OBJDIR)/gfx/drivers/metal.o: OBJCFLAGS += -fobjc-arc
-$(OBJDIR)/input/drivers_joypad/mfi_joypad.o: OBJCFLAGS += -fobjc-arc
-$(OBJDIR)/input/drivers/cocoa_input.o: OBJCFLAGS += -fobjc-arc
-$(OBJDIR)/location/drivers/corelocation.o: OBJCFLAGS += -fobjc-arc
+# per-file CLANG_ENABLE_OBJC_ARC=YES build settings.  ARC is a clang
+# feature; GCC (a PowerPC cross build, Xcode 3) has no such switch and
+# builds these files under MRC through the RARCH_* ownership macros.
+# --version rather than -v: the latter prints the configure line, and a
+# GCC configured with CC=clang would be taken for clang.
+ifeq ($(shell $(CC) --version 2>&1 | head -n 1 | grep -c "clang"),1)
+   OBJC_ARC_FLAGS := -fobjc-arc
+endif
+$(OBJDIR)/gfx/drivers/metal.o: OBJCFLAGS += $(OBJC_ARC_FLAGS)
+$(OBJDIR)/input/drivers_joypad/mfi_joypad.o: OBJCFLAGS += $(OBJC_ARC_FLAGS)
+$(OBJDIR)/input/drivers/cocoa_input.o: OBJCFLAGS += $(OBJC_ARC_FLAGS)
+$(OBJDIR)/location/drivers/corelocation.o: OBJCFLAGS += $(OBJC_ARC_FLAGS)
 
 $(OBJDIR)/%.o: %.S config.h config.mk $(HEADERS)
 	@mkdir -p $(dir $@)

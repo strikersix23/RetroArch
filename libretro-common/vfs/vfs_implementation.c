@@ -1946,6 +1946,45 @@ int retro_vfs_file_rename_impl(const char *old_path, const char *new_path)
 #endif
    return ret;
 
+#elif defined(_XBOX)
+   /* MoveFileEx() is not in the XDK and the CRT rename() refuses an
+    * existing destination, so a destination in the way is moved
+    * aside with MoveFile(), the source moved into place, and the
+    * moved-aside copy deleted only then - or put back if the second
+    * move fails. */
+   {
+      size_t _len;
+      char *aside;
+      int ret;
+
+      if (!old_path || !*old_path || !new_path || !*new_path)
+         return -1;
+
+      if (GetFileAttributes(new_path) == INVALID_FILE_ATTRIBUTES)
+         return MoveFile(old_path, new_path) ? 0 : -1;
+
+      _len  = strlen(new_path);
+      if (!(aside = (char*)malloc(_len + sizeof(".old"))))
+         return -1;
+      memcpy(aside, new_path, _len);
+      memcpy(aside + _len, ".old", sizeof(".old"));
+
+      ret = -1;
+      DeleteFile(aside);               /* a leftover from an earlier run */
+      if (MoveFile(new_path, aside))
+      {
+         if (MoveFile(old_path, new_path))
+         {
+            DeleteFile(aside);
+            ret = 0;
+         }
+         else
+            MoveFile(aside, new_path);
+      }
+
+      free(aside);
+      return ret;
+   }
 #elif defined(VITA) || defined(PSP)
    /* rename() here means "replace": the Win32 branch above says so
     * with MOVEFILE_REPLACE_EXISTING and POSIX says so by definition,

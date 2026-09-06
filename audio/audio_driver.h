@@ -482,6 +482,14 @@ typedef struct
    size_t rewind_size;
 #endif
    size_t buffer_size;
+   /* The device stage behind the driver's buffer, in frames at the
+    * output rate, as the driver reports it: what ASIOGetLatencies gives
+    * for output, say. 0 when the driver reports none. Set by the driver
+    * through audio_driver_set_device_latency(); shown in the statistics
+    * overlay next to the buffer, since it is the part of the path the
+    * setting cannot reach and the part that differs most between
+    * devices. */
+   size_t device_latency_frames;
    size_t data_ptr;
 
    unsigned free_samples_buf[AUDIO_BUFFER_FREE_SAMPLES_COUNT];
@@ -615,6 +623,12 @@ void audio_driver_dsp_filter_free(void);
 bool audio_driver_dsp_filter_init(const char *device);
 
 void audio_driver_set_buffer_size(size_t bufsize);
+
+/* Records the device stage behind the driver's buffer, in frames at the
+ * output rate; 0 to say the driver reports none. Reset when a driver is
+ * initialised, so a driver that reports one calls this after each init
+ * or reinit, and again if the device changes it. */
+void audio_driver_set_device_latency(size_t frames);
 
 bool audio_driver_get_devices_list(void **ptr);
 
@@ -909,6 +923,10 @@ void audio_driver_update_drc_threshold(audio_driver_state_t *audio_st);
 const char *audio_driver_get_ident(void);
 
 double audio_driver_get_buffer_latency_ms(void);
+
+/* The device stage behind the buffer in ms, as set by
+ * audio_driver_set_device_latency(); 0 when the driver reports none. */
+double audio_driver_get_device_latency_ms(void);
 
 /* The device's sample rate as measured against the host clock, in Hz,
  * and the ratio bias applied for it; 0 when no driver reports

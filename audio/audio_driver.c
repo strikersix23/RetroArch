@@ -2450,6 +2450,10 @@ bool audio_driver_init_internal(void *settings_data, bool audio_cb_inited)
             (unsigned)(audio_driver_st.pipe_ring.capacity / (2 * sizeof(int16_t))));
    }
 
+   /* Before the driver's init, which is where a driver that reports a
+    * device stage sets it. */
+   audio_driver_st.device_latency_frames = 0;
+
    if (audio_cb_inited || (AUDIO_FLAGS_GET(&audio_driver_st) & AUDIO_FLAG_PIPELINE_THREADED))
    {
       RARCH_LOG("[Audio] Starting threaded audio driver...\n");
@@ -4369,6 +4373,22 @@ error:
  * it. Zero when no driver is up or it reports no buffer. Half of it is
  * where rate control holds the fill, so half of it in time is the
  * latency heard from the driver at steady state. */
+void audio_driver_set_device_latency(size_t frames)
+{
+   audio_driver_st.device_latency_frames = frames;
+}
+
+double audio_driver_get_device_latency_ms(void)
+{
+   audio_driver_state_t *audio_st = &audio_driver_st;
+   settings_t *settings           = config_get_ptr();
+   unsigned    rate               = settings->uints.audio_output_sample_rate;
+
+   if (!audio_st->current_audio || !audio_st->device_latency_frames || !rate)
+      return 0.0;
+   return (double)audio_st->device_latency_frames * 1000.0 / rate;
+}
+
 double audio_driver_get_buffer_latency_ms(void)
 {
    audio_driver_state_t *audio_st = &audio_driver_st;

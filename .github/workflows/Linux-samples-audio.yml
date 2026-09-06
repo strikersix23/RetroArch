@@ -255,6 +255,25 @@ jobs:
              ./asio_convert_test
           echo "[pass] asio_convert_test (ASan)"
 
+      - name: Build and run asio_ring_test (ASan + UBSan)
+        shell: bash
+        working-directory: samples/audio/asio_ring
+        run: |
+          set -eu
+          # audio/drivers/asio_ring.h sizes the ring in front of the ASIO
+          # device: the latency setting less the device's reported stage,
+          # floored at four periods where that is under 6 ms, 6 ms where it
+          # is over, two periods at the least. Arithmetic only, so it runs
+          # here without Windows. The expected frames are worked by hand
+          # from those rules for the devices that set them - ASIO4ALL at 64
+          # frames, a wrapper locked at 528, a USB DAC at 8 and 128 - and
+          # the two points where the rules meet.
+          make clean all SANITIZER=address,undefined
+          test -x asio_ring_test
+          ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=print_stacktrace=1 timeout 60 \
+             ./asio_ring_test
+          echo "[pass] asio_ring_test (ASan)"
+
       - name: Build and run wasapi_exclusive_pacing_test (ASan + UBSan, then TSan)
         shell: bash
         working-directory: samples/audio/wasapi_exclusive_pacing

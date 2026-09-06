@@ -58,6 +58,7 @@
 #include <retro_atomic.h>
 
 #include "asio_convert.h"
+#include "asio_ring.h"
 #include <retro_spsc.h>
 
 #ifdef HAVE_THREADS
@@ -551,7 +552,6 @@ static INLINE void asio_thiscall_release(void *iface)
 
 #define ASIO_MAX_DRIVERS     32
 #define ASIO_REG_PATH        "SOFTWARE\\ASIO"
-#define ASIO_RING_MULT       4
 
 typedef struct asio_driver_entry
 {
@@ -729,23 +729,13 @@ static size_t asio_device_frames(const ra_asio_t *ad)
    return (size_t)ad->buffer_frames * 2;
 }
 
-/* Frames for the ring, from the latency setting less the device stage.
- * The ring is the stage rate control measures and holds half full; the
- * device stage sits behind it and adds all of itself. It comes off the
- * setting so the two add up to about it, and the ring is floored at
- * ASIO_RING_MULT periods, below which main-thread scheduling jitter
- * underran it audibly. retro_spsc rounds the result up to a power of
- * two; the capacity reported is the rounded one. */
+/* Frames for the ring: the setting less the device stage, floored as
+ * asio_ring.h says. retro_spsc rounds the result up to a power of two;
+ * asio_size_ring() below keeps the size asked for. */
 static size_t asio_ring_frames(const ra_asio_t *ad, unsigned latency)
 {
-   size_t latency_frames = (size_t)ad->sample_rate * latency / 1000;
-   size_t device_frames  = asio_device_frames(ad);
-   size_t floor_frames   = (size_t)ad->buffer_frames * ASIO_RING_MULT;
-   size_t ring_frames    = (latency_frames > device_frames)
-         ? latency_frames - device_frames : 0;
-   if (ring_frames < floor_frames)
-      ring_frames        = floor_frames;
-   return ring_frames;
+   return asio_ring_frames_for(ad->sample_rate, latency,
+         asio_device_frames(ad), (size_t)ad->buffer_frames);
 }
 
 /* Recreates the ring at the size the setting and the device stage call
@@ -798,6 +788,8 @@ static void asio_log_stages(const ra_asio_t *ad, unsigned latency)
    size_t device_frames = asio_device_frames(ad);
    double ring_ms       = (double)ring_frames * 1000.0 / ad->sample_rate;
    double device_ms     = (double)device_frames * 1000.0 / ad->sample_rate;
+   /* For the statistics overlay, next to the ring. */
+   audio_driver_set_device_latency(device_frames);
    /* Rate control holds the ring about half full, so half the ring plus
     * the device stage is what leaves RetroArch on this path. */
    RARCH_LOG("[ASIO] %u ms setting: a %u-frame ring (%.1f ms, rate control holds it about half full) in front of the device's %s of %u frames (%.1f ms); about %.1f ms from write to the device.\n",
@@ -1544,6 +1536,7 @@ static ssize_t ra_asio_write(void *data, const void *buf, size_t len)
          RARCH_LOG("[ASIO] Latencies now: input=%ld, output=%ld frames (%.1f ms); the ring is resized at the next reinit.\n",
                in_lat, out_lat, (float)out_lat * 1000.0f / ad->sample_rate);
          ad->output_latency = out_lat;
+         audio_driver_set_device_latency(asio_device_frames(ad));
       }
    }
 

@@ -5747,31 +5747,41 @@ void video_driver_frame(const void *data, unsigned width,
                   (audio_st->stat_frontend_is_float) ? "FLOAT" : "INT16",
                   settings->uints.audio_output_sample_rate,
                   (audio_st->src_ratio_orig == 1.0) ? "" : "R");
-            if (buffer_ms > 0.0 && (AUDIO_FLAGS_GET(audio_st) & AUDIO_FLAG_CONTROL))
-               __len += snprintf(video_info.stat_text + __len, sizeof(video_info.stat_text) - __len,
-                     " Buffer:   %6.1f ms (asked %u, held ~%.0f)\n",
-                     buffer_ms, setting_ms, buffer_ms / 2.0);
-            else if (buffer_ms > 0.0)
-               __len += snprintf(video_info.stat_text + __len, sizeof(video_info.stat_text) - __len,
-                     " Buffer:   %6.1f ms (asked %u, DRC off)\n",
-                     buffer_ms, setting_ms);
-            else
-               __len += snprintf(video_info.stat_text + __len, sizeof(video_info.stat_text) - __len,
-                     " Buffer:      n/a (asked %u ms)\n", setting_ms);
             {
-               /* The device's real rate against the host clock, and
-                * the bias the resampler carries for it, once a window
-                * has measured. */
+               /* The device stage behind the buffer, where the driver
+                * reports one: the part of the path the setting cannot
+                * reach, and what differs most between devices. Shown as
+                * ring+device so the sum is what leaves RetroArch. */
+               double device_ms = audio_driver_get_device_latency_ms();
+               char   stage[24];
+               if (buffer_ms > 0.0 && device_ms > 0.0)
+                  snprintf(stage, sizeof(stage), "%.1f+%.1f", buffer_ms, device_ms);
+               else if (buffer_ms > 0.0)
+                  snprintf(stage, sizeof(stage), "%.1f", buffer_ms);
+               else
+                  strlcpy(stage, "n/a", sizeof(stage));
+               if (buffer_ms > 0.0 && (AUDIO_FLAGS_GET(audio_st) & AUDIO_FLAG_CONTROL))
+                  __len += snprintf(video_info.stat_text + __len, sizeof(video_info.stat_text) - __len,
+                        " Buffer:  %s ms (asked %u, held ~%.0f)\n",
+                        stage, setting_ms, buffer_ms / 2.0);
+               else
+                  __len += snprintf(video_info.stat_text + __len, sizeof(video_info.stat_text) - __len,
+                        " Buffer:  %s ms (asked %u, DRC off)\n",
+                        stage, setting_ms);
+            }
+            {
+               /* The device's and the core's real rates against the
+                * host clock, as ppm off the output rate on the line
+                * above, and the bias the resampler carries for the
+                * sink; once a window has measured. */
                double sink_bias = 1.0, source_hz = 0.0;
                double sink_hz   = audio_driver_get_sink_rate_hz(&sink_bias, &source_hz);
                if (sink_hz > 0.0)
                   __len += snprintf(video_info.stat_text + __len, sizeof(video_info.stat_text) - __len,
-                        " Sink:    %8.1f Hz (%+.0f ppm, bias %+.0f)\n Source:  %8.1f Hz (%+.0f ppm)\n",
-                        sink_hz,
+                        " Sink/Src: %+.0f/%+.0f ppm (bias %+.0f)\n",
                         (sink_hz / (double)settings->uints.audio_output_sample_rate - 1.0) * 1e6,
-                        (sink_bias - 1.0) * 1e6,
-                        source_hz,
-                        (source_hz / (double)settings->uints.audio_output_sample_rate - 1.0) * 1e6);
+                        (source_hz / (double)settings->uints.audio_output_sample_rate - 1.0) * 1e6,
+                        (sink_bias - 1.0) * 1e6);
             }
          }
 

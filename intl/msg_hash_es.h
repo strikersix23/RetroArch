@@ -609,6 +609,7 @@ static const struct
    char s_dd6afca3[21];
    char s_4bcbcc14[43];
    char s_e97bb565[18];
+   char s_47e8dc21[36];
    char s_da7a38eb[20];
 #ifdef _3DS
    char s_9db0c321[39];
@@ -2272,6 +2273,7 @@ static const struct
    char s_69b801ef[9];
    char s_a40653a7[35];
    char s_52e3d6ea[52];
+   char s_c992346c[32];
    char s_580e244f[7];
    char s_a9c8430e[18];
    char s_f5911f43[38];
@@ -2650,6 +2652,7 @@ static const struct
    char s_a68d6d11[64];
    char s_74022c02[118];
    char s_8abad013[83];
+   char s_0a53120f[493];
    char s_a39ca959[83];
    char s_16b9856e[33];
    char s_0ef5e125[28];
@@ -3558,6 +3561,7 @@ static const struct
    char s_7968f59d[43];
    char s_8cee3615[214];
    char s_58c80718[411];
+   char s_894ecb9a[425];
    char s_67d549fd[40];
    char s_afac733c[40];
    char s_3aaf6bf1[149];
@@ -3783,6 +3787,8 @@ static const struct
    char s_5eafa434[50];
    char s_7f1e25bf[46];
    char s_ed9e4f6f[140];
+   char s_ecbaddbe[72];
+   char s_c860f446[72];
    char s_30da3845[37];
    char s_d50c6bf1[42];
    char s_64a038aa[23];
@@ -5024,6 +5030,7 @@ static const struct
    "Ultraresoluci\303\263n CRT",
    "Frecuencia de actualizaci\303\263n personalizada",
    "Centrado vertical",
+   "Escribir EDID para preajuste de CRT",
    "Centrado horizontal",
 #ifdef _3DS
    "2D (efecto de cuadr\303\255cula de p\303\255xeles)",
@@ -6697,6 +6704,7 @@ static const struct
    "Escalado",
    "Sincronizar con l\303\255neas de barrido",
    "Simulaci\303\263n de escalonamiento de l\303\255neas de barrido",
+   "Cambio de modo de v\303\255deo de SDL",
    "V\303\255deo",
    "Shaders de v\303\255deo",
    "Retrasar carga autom\303\241tica de shaders",
@@ -7223,6 +7231,12 @@ static const struct
    "Si es necesario, utiliza una frecuencia de actualizaci\303\263n personalizada especificada en el"
    " archivo de configuraci\303\263n.",
    "Modifica esta opci\303\263n si la imagen no est\303\241 correctamente centrada en la pantalla.",
+   "Escribe un bloque EDID que describir\303\241 el preajuste de CRT seleccionado en el directorio d"
+   "e configuraci\303\263n. Se cargar\303\241 como un EDID de firmware en Linux (drm.edid_firmware) "
+   "o como una personalizaci\303\263n de EDID en Windows. Permite que un monitor que no tenga DDC pu"
+   "eda informar de sus l\303\255mites de sincronizaci\303\263n, as\303\255 el sistema podr\303\241 "
+   "ejecutarse a una frecuencia que pueda mostrar el CRT. No se instalar\303\241 nada, el registro i"
+   "ndicar\303\241 d\303\263nde se encuentra el archivo y c\303\263mo se puede utilizar.",
    "Modifica esta opci\303\263n si la imagen no est\303\241 correctamente centrada en la pantalla.",
    "Muestra las \303\272ltimas b\303\272squedas.",
    "Muestra las bases de datos.",
@@ -8704,6 +8718,11 @@ static const struct
    "responsabilidad. // Simula de forma b\303\241sica el escalonamiento de las l\303\255neas de barr"
    "ido a lo largo de varios subfotogramas dividendo la pantalla en partes verticales y renderizando"
    " cada una de las mismas en funci\303\263n de los subfotogramas que existan.",
+   "Permite que la ventana SDL pueda cambiar entre los modos de v\303\255deo que tenga listados. El "
+   "valor autom\303\241tico solo utilizar\303\241 esta opci\303\263n cuando el servidor nativo de la"
+   " imagen no pueda cambiar de modo. Siempre ignorar\303\241 al servidor nativo: SwitchRes para CRT"
+   " pasar\303\241 a elegir uno de los modos listados, incluyendo aquellos que no tengan frecuencias"
+   " conocidas, y las frecuencias personalizadas de CRT no estar\303\241n disponibles.",
    "Cambia los ajustes de salida de v\303\255deo.",
    "Activa el proceso de shaders de v\303\255deo.",
    "Retrasa la carga autom\303\241tica de shaders en milisegundos. Puede sortear los fallos gr\303"
@@ -9005,6 +9024,8 @@ static const struct
    "No se puede leer el estado de la repetici\303\263n.",
    "El CRC32 del contenido no concuerda con el del encabezado de la repetici\303\263n. Es muy probab"
    "le que la repetici\303\263n no se muestre sincronizada.",
+   "No se ha podido escribir un EDID para el preajuste de CRT seleccionado.",
+   "EDID escrito en %s. Abre el registro si necesitas saber c\303\263mo cargarlo.",
    "Indicada una velocidad personalizada",
    "El archivo ya est\303\241 siendo descomprimido.",
    "Error al descomprimir.",
@@ -9440,7 +9461,7 @@ static const struct
  * compiler that pads this struct fails here instead of
  * misindexing at runtime. */
 typedef char msg_hash_es_blob_check[
-      (sizeof(msg_hash_es_blob) == (211870u
+      (sizeof(msg_hash_es_blob) == (213000u
 #ifdef ANDROID
        + 329u
 #endif
@@ -10451,6 +10472,7 @@ static const uint32_t msg_hash_es_ids[] =
    (uint32_t)MENU_ENUM_LABEL_VALUE_CRT_SWITCH_RESOLUTION_SUPER,
    (uint32_t)MENU_ENUM_LABEL_VALUE_CRT_SWITCH_RESOLUTION_USE_CUSTOM_REFRESH_RATE,
    (uint32_t)MENU_ENUM_LABEL_VALUE_CRT_SWITCH_VERTICAL_ADJUST,
+   (uint32_t)MENU_ENUM_LABEL_VALUE_CRT_SWITCH_WRITE_EDID,
    (uint32_t)MENU_ENUM_LABEL_VALUE_CRT_SWITCH_X_AXIS_CENTERING,
 #ifdef _3DS
    (uint32_t)MENU_ENUM_LABEL_VALUE_CTR_VIDEO_MODE_2D_400X240,
@@ -12113,6 +12135,7 @@ static const uint32_t msg_hash_es_ids[] =
    (uint32_t)MENU_ENUM_LABEL_VALUE_VIDEO_SCALING_SETTINGS,
    (uint32_t)MENU_ENUM_LABEL_VALUE_VIDEO_SCANLINE_SYNC,
    (uint32_t)MENU_ENUM_LABEL_VALUE_VIDEO_SCAN_SUBFRAMES,
+   (uint32_t)MENU_ENUM_LABEL_VALUE_VIDEO_SDL_DISPLAY_SERVER,
    (uint32_t)MENU_ENUM_LABEL_VALUE_VIDEO_SETTINGS,
    (uint32_t)MENU_ENUM_LABEL_VALUE_VIDEO_SHADERS_ENABLE,
    (uint32_t)MENU_ENUM_LABEL_VALUE_VIDEO_SHADER_DELAY,
@@ -12488,6 +12511,7 @@ static const uint32_t msg_hash_es_ids[] =
    (uint32_t)MENU_ENUM_SUBLABEL_CRT_SWITCH_RESOLUTION_SUPER,
    (uint32_t)MENU_ENUM_SUBLABEL_CRT_SWITCH_RESOLUTION_USE_CUSTOM_REFRESH_RATE,
    (uint32_t)MENU_ENUM_SUBLABEL_CRT_SWITCH_VERTICAL_ADJUST,
+   (uint32_t)MENU_ENUM_SUBLABEL_CRT_SWITCH_WRITE_EDID,
    (uint32_t)MENU_ENUM_SUBLABEL_CRT_SWITCH_X_AXIS_CENTERING,
    (uint32_t)MENU_ENUM_SUBLABEL_CURSOR_MANAGER,
    (uint32_t)MENU_ENUM_SUBLABEL_DATABASE_MANAGER,
@@ -13396,6 +13420,7 @@ static const uint32_t msg_hash_es_ids[] =
    (uint32_t)MENU_ENUM_SUBLABEL_VIDEO_SCALING_SETTINGS,
    (uint32_t)MENU_ENUM_SUBLABEL_VIDEO_SCANLINE_SYNC,
    (uint32_t)MENU_ENUM_SUBLABEL_VIDEO_SCAN_SUBFRAMES,
+   (uint32_t)MENU_ENUM_SUBLABEL_VIDEO_SDL_DISPLAY_SERVER,
    (uint32_t)MENU_ENUM_SUBLABEL_VIDEO_SETTINGS,
    (uint32_t)MENU_ENUM_SUBLABEL_VIDEO_SHADERS_ENABLE,
    (uint32_t)MENU_ENUM_SUBLABEL_VIDEO_SHADER_DELAY,
@@ -13621,6 +13646,8 @@ static const uint32_t msg_hash_es_ids[] =
    (uint32_t)MSG_COULD_NOT_READ_MOVIE_HEADER,
    (uint32_t)MSG_COULD_NOT_READ_STATE_FROM_MOVIE,
    (uint32_t)MSG_CRC32_CHECKSUM_MISMATCH,
+   (uint32_t)MSG_CRT_SWITCH_EDID_FAILED,
+   (uint32_t)MSG_CRT_SWITCH_EDID_WRITTEN,
    (uint32_t)MSG_CUSTOM_TIMING_GIVEN,
    (uint32_t)MSG_DECOMPRESSION_ALREADY_IN_PROGRESS,
    (uint32_t)MSG_DECOMPRESSION_FAILED,
